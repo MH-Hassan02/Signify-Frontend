@@ -1,0 +1,138 @@
+.navMain {
+  position: sticky;
+  top: 0;
+  height: 80px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 2%;
+  background-color: var(--primary-color);
+}
+
+.navLogo img {
+  height: 60px;
+  width: 200px;
+}
+
+.navLinks {
+  display: flex;
+  gap: 30px;
+}
+
+.navLinks a {
+  color: white;
+  text-decoration: none;
+}
+
+.navLinks a:hover {
+  color: var(--secondary-color);
+}
+
+.navAuth {
+  display: flex;
+  gap: 20px;
+}
+
+.navAuth button {
+  height: 40px;
+  width: 100px;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+}
+
+.navAuth button:hover {
+  transform: scale(1.05);
+}
+
+.navAuth .btn1 {
+  background-color: var(--secondary-color);
+  color: var(--text-color);
+}
+
+.navAuth .btn2 {
+  background-color: var(--text-color);
+  color: var(--primary-color);
+}
+
+.profileContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 250px;
+  gap: 20px;
+  padding: 10px;
+}
+
+.profileImg {
+  display: flex;
+}
+
+.profileImg img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.profileName {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-color);
+}
+
+.logoutButtonContainer {
+  position: absolute;
+  top: 80%;
+  right: 2%;
+  margin-top: 5px;
+  background-color: var(--secondary-color);
+  color: var(--text-color);
+  width: 100px;
+  padding: 0px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.logoutButton {
+  background-color: var(--secondary-color);
+  color: var(--text-color);
+  height: 35px;
+}
+
+.profileContainer:hover {
+  cursor: pointer;
+}
+
+@media only screen and (min-width: 1400px) {
+  .navMain {
+    padding: 0 10%;
+  }
+  .profileContainer {
+    max-width: 400px;
+  }
+  .logoutButtonContainer {
+    right: 10%;
+  }
+}
+
+@media only screen and (max-width: 1200px) {
+  .navMain {
+    padding: 0 2%;
+  }
+}
+
+@media only screen and (max-width: 1024px) {
+  .navMain {
+    padding: 0 2%;
+  }
+  .navLinks,
+  .navAuth,
+  .profileContainer {
+    display: none;
+  }
+}

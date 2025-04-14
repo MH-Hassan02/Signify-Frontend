@@ -1,0 +1,78 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+button {
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease-in-out, transform 0.2s ease-in-out;
+}
+
+button:hover {
+  transform: scale(1.02);
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+:root{
+  --primary-color: #000;
+  --secondary-color: #a1763a;
+  --text-color: white;
+  --secondary-color-hover: #a57128;
+  --secondary-color-rgb: 161, 118, 58;
+  --grayish-text-color: #adadad;
+}
+
+/* Toast */
+.Toastify__toast--success, .Toastify__toast--error, .Toastify__toast--info {
+  background-color: var(--primary-color);
+  color: var(--text-color);
+  border-top: 2px solid var(--secondary-color);
+  border-radius: 8px;
+}
+
+@media only screen and (max-width: 1024px) {
+  .bottomNavMargin{
+    margin-bottom: 64px;
+  }
+}
+
+@media only screen and (min-width: 2000px) {
+  :root {
+    margin-left: 15%;
+    margin-right: 15%;
+    width: 70%;
+  }
+}
+
+@media only screen and (min-width: 2700px) {
+  :root {
+    margin-left: 25%;
+    margin-right: 25%;
+    width: 50%;
+  }
+}
+
+@media only screen and (min-width: 4000px) {
+  :root {
+    margin-left: 33%;
+    margin-right: 33%;
+    width: 34%;
+  }
+}
+
+@media only screen and (min-width: 4500px) {
+  :root {
+    margin-left: 37.5%;
+    margin-right: 37.5%;
+    width: 25%;
+  }
+}

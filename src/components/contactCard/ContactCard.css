@@ -1,0 +1,124 @@
+.contactCard {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 10px;
+  cursor: pointer;
+  transition: background 0.2s ease-in-out;
+  border-radius: 8px;
+}
+
+.contactCard:hover {
+  background-color: rgb(19, 25, 32);
+}
+
+.contactCard.active {
+  background-color: rgb(19, 25, 32);
+}
+
+.avatar img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.contactInfo {
+  flex: 1;
+}
+
+.contactInfo h4 {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.contactInfo p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--grayish-text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 200px;
+}
+
+.contactMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Default time size */
+.messageTimeContacts {
+  color: var(--grayish-text-color);
+  padding: 0 2px;
+  font-size: 12px;
+}
+
+/* Smaller time if badge is present */
+.messageTimeContacts.smallTime {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.unreadBadge {
+  background-color: var(--secondary-color);
+  color: var(--text-color);
+  padding: 4px 7px;
+  border-radius: 50%;
+  font-size: 11px;
+  min-width: 18px;
+  text-align: center;
+}
+
+
+@media only screen and (max-width:1200px){
+  .contactInfo p{
+      max-width: 140px;
+  }
+}
+
+@media only screen and (max-width:1000px){
+  .contactInfo p{
+      max-width: 110px;
+  }
+}
+
+@media only screen and (max-width:900px){
+  .contactInfo p{
+      max-width: 80px;
+  }
+}
+
+@media only screen and (max-width:800px) and (min-width:769px){
+  .contactInfo p{
+      max-width: 50px;
+  }
+}
+
+@media only screen and (min-width:1400px){
+  .contactInfo p{
+      max-width:250px;
+  }
+}
+
+@media only screen and (min-width:1600px){
+    .contactInfo p{
+        max-width: 320px;
+    }
+}
+
+@media only screen and (min-width:1800px){
+    .contactInfo p{
+        max-width: 380px;
+    }
+}
+
+@media only screen and (min-width:2000px){
+    .contactInfo p{
+        max-width: 250px;
+    }
+}

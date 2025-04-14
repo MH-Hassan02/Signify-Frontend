@@ -1,0 +1,74 @@
+.chatPlaceholderContainer {
+  width: 100%;
+  height: 100vh;
+  padding: 8% 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.chatPlaceholderMain {
+  width: 70%;
+  background-color: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4% 5%;
+  border-radius: 10px;
+}
+
+.chatPlaceholderTextBox {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  padding: 2% 5%;
+}
+
+.chatPlaceholderTextBox h1 {
+  font-weight: 600;
+  font-size: 24px;
+  color: var(--text-color);
+  margin-bottom: 20px;
+}
+
+.chatPlaceholderTextBox p {
+  font-size: 16px;
+  color: var(--grayish-text-color);
+}
+
+@media only screen and (max-width: 1024px) {
+  .chatPlaceholderMain {
+    width: 80%; /* Adjust main container width on smaller screens */
+  }
+  .chatPlaceholderTextBox h1 {
+    font-size: 22px; /* Adjust heading size */
+  }
+  .chatPlaceholderTextBox h3 {
+    font-size: 16px; /* Adjust subheading size */
+  }
+}
+
+@media only screen and (max-width: 768px) {
+  .chatPlaceholderMain {
+    width: 90%;
+  }
+  .chatPlaceholderTextBox {
+    width: 100%;
+    padding: 5% 3%;
+  }
+}
+
+@media only screen and (max-width: 450px) {
+  .chatPlaceholderTextBox h1 {
+    font-size: 20px;
+  }
+  .chatPlaceholderTextBox h3 {
+    font-size: 16px;
+  }
+  .chatPlaceholderTextBox p {
+    font-size: 14px;
+  }
+}

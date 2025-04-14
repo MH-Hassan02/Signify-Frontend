@@ -1,0 +1,21 @@
+.contactsList::-webkit-scrollbar,
+.chatMessages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.contactsList::-webkit-scrollbar-track,
+.chatMessages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.contactsList::-webkit-scrollbar-thumb,
+.chatMessages::-webkit-scrollbar-thumb {
+  background-color: rgb(16, 20, 26);
+  border-radius: 10px;
+}
+
+.contactsList,
+.chatMessages {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(16, 20, 26) transparent;
+}

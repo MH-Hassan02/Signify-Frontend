@@ -1,0 +1,104 @@
+.heroMain{
+    width: 100%;
+    height: 100%;
+    padding: 5% 0;
+    background-color: var(--primary-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.heroTextBox{
+    width: 50%;
+    height: 100%;
+    color: var(--text-color);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 2% 5% 2% 5%;
+}
+
+.heroText{
+    margin-bottom: 50px;
+}
+
+.heroText h1{
+    font-weight: 600;
+}
+
+.heroText h3{
+    font-weight: 400;
+    margin-bottom: 30px;
+}
+
+.heroText span{
+    color: var(--secondary-color);
+}
+
+.heroBtns{
+    display: flex;
+    gap: 20px;
+    margin-top: 50px;
+}
+
+.heroBtns button{
+    height: 50px;
+    width: 200px;
+    font-size: 16px;
+}
+
+.heroBtns .btn1{
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+}
+
+.heroBtns .btn2{
+    background-color: var(--text-color);
+    color: var(--primary-color);
+}
+
+.heroImg{
+    width: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.heroImg img{
+    height: 400px;
+    margin-top: 50px;
+}
+
+@media only screen and (max-width: 1024px) {
+    .heroTextBox{
+        width: 60%;
+    }
+    .heroImg{
+        width: 40%;
+    }
+    .heroImg img{
+        height: 300px;
+        margin-top: 0;
+    }
+}
+
+@media only screen and (max-width: 768px) {
+    .heroMain{
+        padding: 5% 2%;
+    }
+    .heroTextBox{
+        width: 100%;
+    }
+    .heroImg{
+        display: none;
+    }
+}
+
+@media only screen and (max-width: 450px) {
+    .heroBtns{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+}
