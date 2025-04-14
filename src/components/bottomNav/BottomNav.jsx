@@ -4,7 +4,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { logoutUser } from "../../redux/slices/userSlice";
 import { FiHome, FiInfo, FiUser, FiLogOut } from "react-icons/fi";
 import { HiOutlineVideoCamera } from "react-icons/hi";
-import "./bottomNav.css";
+import "./BottomNav.css";
 import { BiEdit } from "react-icons/bi";
 
 const BottomNav = () => {
