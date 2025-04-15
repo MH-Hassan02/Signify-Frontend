@@ -6,6 +6,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import Chat from "../../components/chat/Chat";
 import VideoCall from "../../components/videoCall/VideoCall";
 import { useVideoCall } from "../../contexts/VideoCallContext";
+import socket from "../../socket";
 
 const Calls = () => {
   const [selectedContact, setSelectedContact] = useState(null);
@@ -35,7 +36,6 @@ const Calls = () => {
     }
 
     if (incomingCallData) {
-      console.log(incomingCallData, "incomingCallData");
       setSelectedContact(state.selectedContact);
       setVideoCallActive(true);
     }
@@ -55,6 +55,11 @@ const Calls = () => {
   const closeVideoCall = () => {
     setVideoCallActive(false);
   };
+
+    useEffect(() => {
+      socket.emit("setup", userInfo);
+    }, [userInfo]);
+  
 
   return (
     <div className="callsContainer">
@@ -86,7 +91,7 @@ const Calls = () => {
       <div className={`videoCallSection ${videoCallActive ? "" : "callHide"}`}>
         {videoCallActive && selectedContact && (
           <VideoCall
-            currentUser={userInfo.userInfo}
+            currentUser={userInfo}
             contactId={selectedContact._id}
             onClose={closeVideoCall}
             contactProfilePic={selectedContact.profilePic}

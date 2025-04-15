@@ -10,6 +10,7 @@ import { toast } from "react-toastify";
 import socket from "../../socket";
 import "./VideoCall.css";
 import { useVideoCall } from "../../contexts/VideoCallContext";
+import { useNavigate } from "react-router-dom";
 
 const VideoCall = ({
   currentUser,
@@ -22,12 +23,14 @@ const VideoCall = ({
   const remoteVideoRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
+  const [remoteStreamAvailable, setRemoteStreamAvailable] = useState(false);
 
   const { incomingCall, setIncomingCall, isCalling, setIsCalling } =
     useVideoCall();
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
-  const [isRemoteVideoOn, setIsRemoteVideoOn] = useState(true); // New state
+
+  const navigate = useNavigate()
 
   const servers = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
@@ -38,7 +41,9 @@ const VideoCall = ({
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
     pc.ontrack = (event) => {
-      remoteVideoRef.current.srcObject = event.streams[0];
+      const [remoteStream] = event.streams;
+      remoteVideoRef.current.srcObject = remoteStream;
+      setRemoteStreamAvailable(true);
     };
 
     pc.onicecandidate = (event) => {
@@ -113,7 +118,9 @@ const VideoCall = ({
 
     setIsCalling(false);
     setIncomingCall(null);
+    setRemoteStreamAvailable(false);
     onClose?.();
+    navigate("/calls", { replace: true });
   };
 
   useEffect(() => {
@@ -150,6 +157,22 @@ const VideoCall = ({
     }
   }, [incomingCall]);
 
+  const toggleMic = () => {
+    const track = localStreamRef.current?.getAudioTracks()?.[0];
+    if (track) {
+      track.enabled = !track.enabled;
+      setIsMicOn(track.enabled);
+    }
+  };
+
+  const toggleVideo = () => {
+    const track = localStreamRef.current?.getVideoTracks()?.[0];
+    if (track) {
+      track.enabled = !track.enabled;
+      setIsVideoOn(track.enabled);
+    }
+  };
+
   return (
     <div className="videoCallWrapper">
       <div className="videoContainer">
@@ -174,7 +197,7 @@ const VideoCall = ({
         </div>
 
         <div className="videoSlot">
-          {!isRemoteVideoOn ? (
+          {!remoteStreamAvailable ? (
             <img
               src={contactProfilePic}
               alt={contactUsername}
@@ -187,9 +210,7 @@ const VideoCall = ({
               autoPlay
             />
           )}
-          <p className="contactNameVideo">
-            {contactUsername && contactUsername}
-          </p>
+          <p className="contactNameVideo">{contactUsername}</p>
         </div>
       </div>
 
@@ -206,22 +227,6 @@ const VideoCall = ({
       </div>
     </div>
   );
-
-  function toggleMic() {
-    const track = localStreamRef.current?.getAudioTracks()?.[0];
-    if (track) {
-      track.enabled = !track.enabled;
-      setIsMicOn(track.enabled);
-    }
-  }
-
-  function toggleVideo() {
-    const track = localStreamRef.current?.getVideoTracks()?.[0];
-    if (track) {
-      track.enabled = !track.enabled;
-      setIsVideoOn(track.enabled);
-    }
-  }
 };
 
 export default VideoCall;

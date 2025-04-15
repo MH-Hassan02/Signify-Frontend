@@ -25,15 +25,13 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
   const { incomingCall, setIncomingCall, isCalling } = useVideoCall();
 
   useEffect(() => {
-    socket.emit("setup", currentUser);
-  }, [currentUser]);
-
-  useEffect(() => {
     const fetchMessages = async () => {
       if (selectedContact) {
         try {
           const res = await axios.get(
-            `${import.meta.env.VITE_BASE_URL}/messages/${currentUser._id}/${selectedContact._id}`,
+            `${import.meta.env.VITE_BASE_URL}/messages/${currentUser._id}/${
+              selectedContact._id
+            }`,
             { withCredentials: true }
           );
           setMessages(res.data);
@@ -87,25 +85,36 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
 
   useEffect(() => {
     const chatContainer = chatMessagesRef.current;
-
+    let scrollTimeout;
+    let isUserAtBottom = true;
+  
     const handleScroll = () => {
       if (!chatContainer) return;
-      const isAtBottom =
-        chatContainer.scrollHeight - chatContainer.scrollTop ===
-        chatContainer.clientHeight;
-      setShowScrollToBottom(!isAtBottom);
-    };
-
-    if (chatContainer) {
-      chatContainer.addEventListener("scroll", handleScroll);
-    }
-
-    return () => {
-      if (chatContainer) {
-        chatContainer.removeEventListener("scroll", handleScroll);
+      const atBottom =
+        chatContainer.scrollHeight - chatContainer.scrollTop <=
+        chatContainer.clientHeight + 10;
+  
+      isUserAtBottom = atBottom;
+  
+      if (!atBottom) {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+          setShowScrollToBottom(true);
+        }, 200);
+      } else {
+        clearTimeout(scrollTimeout);
+        setShowScrollToBottom(false);
       }
     };
+  
+    chatContainer?.addEventListener("scroll", handleScroll);
+  
+    return () => {
+      chatContainer?.removeEventListener("scroll", handleScroll);
+      clearTimeout(scrollTimeout);
+    };
   }, []);
+  
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -138,11 +147,9 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
       setMessages((prev) => [...prev, newMsg]);
       setInput("");
 
-      await axios.post(
-        `${import.meta.env.VITE_BASE_URL}/messages`,
-        newMsg,
-        { withCredentials: true }
-      );
+      await axios.post(`${import.meta.env.VITE_BASE_URL}/messages`, newMsg, {
+        withCredentials: true,
+      });
 
       socket.emit("new message", newMsg);
       socket.emit("stop typing", {
@@ -174,20 +181,32 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
     markAsRead();
   }, [messages, someoneTyping]);
 
-  useEffect(() => {
-    socket.on("message received", (newMsg) => {
-      if (
-        newMsg.sender._id === selectedContact._id ||
-        newMsg.receiver === selectedContact._id
-      ) {
-        setMessages((prev) => [...prev, newMsg]);
-      }
-    });
+useEffect(() => {
+  socket.on("message received", (newMsg) => {
+    if (
+      newMsg.sender._id === selectedContact._id ||
+      newMsg.receiver === selectedContact._id
+    ) {
+      setMessages((prev) => [...prev, newMsg]);
 
-    return () => {
-      socket.off("message received");
-    };
-  }, [selectedContact]);
+      const chatContainer = chatMessagesRef.current;
+      const atBottom =
+        chatContainer.scrollHeight - chatContainer.scrollTop <=
+        chatContainer.clientHeight + 10;
+
+      if (atBottom) {
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }, 50);
+      }
+    }
+  });
+
+  return () => {
+    socket.off("message received");
+  };
+}, [selectedContact]);
+
 
   return (
     <div className="chatMain">
@@ -246,7 +265,7 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
 
           {showScrollToBottom && (
             <button className="scrollToBottomBtn" onClick={scrollToBottom}>
-              <FaArrowDown /> 
+              <FaArrowDown />
             </button>
           )}
 

@@ -71,7 +71,7 @@ const Contacts = ({ onSelectContact }) => {
       // console.log("🧹 Cleaning up socket listener");
       socket.off("message received", handleMessageReceived);
     };
-  }, []);
+  }, [contacts]);
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) return;
