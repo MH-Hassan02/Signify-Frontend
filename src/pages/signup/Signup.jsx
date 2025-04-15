@@ -6,7 +6,7 @@ import { FaGoogle } from "react-icons/fa";
 import logo from "../../images/logo.png";
 import { auth, provider } from "../../firebase";
 import { signInWithPopup } from "firebase/auth";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./Signup.css";
 
@@ -46,7 +46,14 @@ const Signup = () => {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-      dispatch(googleSignIn({ email: user.email, username: user.displayName, googleId: user.uid }));
+      dispatch(
+        googleSignIn({
+          email: user.email,
+          username: user.displayName,
+          googleId: user.uid,
+          profilePic: user.photoURL,
+        })
+      );
     } catch (error) {
       toast.error("Google Sign-In Failed! Try again.");
     }
@@ -98,7 +105,10 @@ const Signup = () => {
             <div className="signupButtonContainer">
               <p>
                 Already have an account?{" "}
-                <span onClick={() => navigate("/login")} style={{ cursor: "pointer" }}>
+                <span
+                  onClick={() => navigate("/login")}
+                  style={{ cursor: "pointer" }}
+                >
                   Log in now!
                 </span>
               </p>
@@ -118,7 +128,6 @@ const Signup = () => {
           </form>
         </div>
       </div>
-      <ToastContainer />
     </>
   );
 };
