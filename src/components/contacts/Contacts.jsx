@@ -87,7 +87,7 @@ const Contacts = ({ onSelectContact }) => {
       setSearchResults([res.data]);
     } catch (err) {
       console.error("Search error:", err);
-      toast.error(err.response.data.message);
+      toast.error(err.response.data.msg);
     } finally {
       setLoading(false);
     }
