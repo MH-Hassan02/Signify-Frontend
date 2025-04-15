@@ -23,14 +23,14 @@ const VideoCall = ({
   const remoteVideoRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
-  const [remoteStreamAvailable, setRemoteStreamAvailable] = useState(false);
+  const [remoteStream, setRemoteStream] = useState(null); // Use state to manage the remote stream
 
   const { incomingCall, setIncomingCall, isCalling, setIsCalling } =
     useVideoCall();
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   const servers = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
@@ -38,21 +38,32 @@ const VideoCall = ({
     const pc = new RTCPeerConnection(servers);
     peerConnectionRef.current = pc;
 
+    console.log("🔄 Setting up Peer Connection");
+
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
     pc.ontrack = (event) => {
+      console.log("📡 Remote track received");
       const [remoteStream] = event.streams;
-      remoteVideoRef.current.srcObject = remoteStream;
-      setRemoteStreamAvailable(true);
+      setRemoteStream(remoteStream); // Update the state with the remote stream
     };
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        console.log("📨 Sending ICE candidate");
         socket.emit("ice-candidate", {
           to: contactId,
           candidate: event.candidate,
         });
       }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log("🧊 ICE Connection State:", pc.iceConnectionState);
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log("🔌 Peer Connection State:", pc.connectionState);
     };
 
     return pc;
@@ -78,7 +89,7 @@ const VideoCall = ({
         from: currentUser,
       });
     } catch (err) {
-      console.error(err);
+      console.error("🚫 Failed to start call:", err);
       toast.error("Failed to start call.");
     }
   };
@@ -94,9 +105,11 @@ const VideoCall = ({
       localVideoRef.current.srcObject = stream;
 
       const pc = setupPeerConnection(stream);
+      console.log("📩 Setting remote offer");
       await pc.setRemoteDescription(
         new RTCSessionDescription(incomingCall.offer)
       );
+
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
@@ -105,29 +118,37 @@ const VideoCall = ({
         answer,
       });
     } catch (err) {
-      console.error(err);
+      console.error("🚫 Failed to accept call:", err);
       toast.error("Failed to accept call.");
     }
   };
 
   const endCall = () => {
+    console.log("📴 Ending call");
     socket.emit("end-call", { to: contactId });
 
     peerConnectionRef.current?.close();
+    peerConnectionRef.current = null;
+
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
+    localStreamRef.current = null;
 
     setIsCalling(false);
     setIncomingCall(null);
-    setRemoteStreamAvailable(false);
     onClose?.();
     navigate("/calls", { replace: true });
   };
 
   useEffect(() => {
-    socket.on("call-accepted", ({ answer }) => {
-      peerConnectionRef.current?.setRemoteDescription(
-        new RTCSessionDescription(answer)
-      );
+    socket.on("call-accepted", async ({ answer }) => {
+      console.log("✅ Call accepted");
+      try {
+        await peerConnectionRef.current?.setRemoteDescription(
+          new RTCSessionDescription(answer)
+        );
+      } catch (err) {
+        console.error("❗Error setting remote description from answer:", err);
+      }
     });
 
     socket.on("call-ended", () => {
@@ -135,10 +156,15 @@ const VideoCall = ({
       endCall();
     });
 
-    socket.on("ice-candidate", ({ candidate }) => {
-      peerConnectionRef.current?.addIceCandidate(
-        new RTCIceCandidate(candidate)
-      );
+    socket.on("ice-candidate", async ({ candidate }) => {
+      try {
+        await peerConnectionRef.current?.addIceCandidate(
+          new RTCIceCandidate(candidate)
+        );
+        console.log("✅ ICE candidate added");
+      } catch (err) {
+        console.error("🚫 Failed to add ICE candidate:", err);
+      }
     });
 
     return () => {
@@ -156,6 +182,14 @@ const VideoCall = ({
       startCall();
     }
   }, [incomingCall]);
+
+  // This useEffect will apply the remote stream to the remote video once available
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      console.log("✅ Applying remote stream to video element");
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]); // Runs every time remoteStream changes
 
   const toggleMic = () => {
     const track = localStreamRef.current?.getAudioTracks()?.[0];
@@ -197,7 +231,7 @@ const VideoCall = ({
         </div>
 
         <div className="videoSlot">
-          {!remoteStreamAvailable ? (
+          {!remoteStream ? (
             <img
               src={contactProfilePic}
               alt={contactUsername}
