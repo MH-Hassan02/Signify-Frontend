@@ -169,7 +169,7 @@ const VideoCall = ({
             />
           )}
           <p className="contactNameVideo">
-            {currentUser.username} {!isMicOn && <FaMicrophoneSlash />}
+            {currentUser?.username} {!isMicOn && <FaMicrophoneSlash />}
           </p>
         </div>
 
@@ -187,7 +187,9 @@ const VideoCall = ({
               autoPlay
             />
           )}
-          <p className="contactNameVideo">{contactUsername}</p>
+          <p className="contactNameVideo">
+            {contactUsername && contactUsername}
+          </p>
         </div>
       </div>
 
