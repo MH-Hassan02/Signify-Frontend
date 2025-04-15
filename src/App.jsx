@@ -17,6 +17,7 @@ import socket from "./socket";
 import IncomingCallPopup from "./components/chat/IncomingCallPopup";
 import GlobalSocketListener from "./GlobalSocketListener";
 import Profile from "./pages/Profile/Profile";
+import NotFoundPage from "./pages/not found/NotFoundPage";
 
 function App() {
   const location = useLocation();
@@ -52,6 +53,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/calls" element={<Calls />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
         {!hideNavFooter && <Footer />}
       </div>
