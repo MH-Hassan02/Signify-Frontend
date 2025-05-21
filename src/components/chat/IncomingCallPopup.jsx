@@ -25,16 +25,30 @@ const IncomingCallPopup = () => {
         handleReject();
         toast.info("Call timed out.");
       }, 30000);
-    }
 
-    return () => {
-      clearTimeout(autoRejectTimeoutRef.current);
-      if (ringtoneRef.current) {
-        ringtoneRef.current.pause();
-        ringtoneRef.current.currentTime = 0;
-      }
-    };
-  }, [incomingCall]);
+      // Listen for call cancellation
+      const handleCallEnded = () => {
+        console.log("Call ended by caller");
+        if (ringtone) {
+          ringtone.pause();
+          ringtone.currentTime = 0;
+        }
+        setIncomingCall(null);
+        toast.info("Caller ended the call");
+      };
+
+      socket.on("call-ended", handleCallEnded);
+
+      return () => {
+        clearTimeout(autoRejectTimeoutRef.current);
+        if (ringtoneRef.current) {
+          ringtoneRef.current.pause();
+          ringtoneRef.current.currentTime = 0;
+        }
+        socket.off("call-ended", handleCallEnded);
+      };
+    }
+  }, [incomingCall, setIncomingCall]);
 
   if (!incomingCall) return null;
 

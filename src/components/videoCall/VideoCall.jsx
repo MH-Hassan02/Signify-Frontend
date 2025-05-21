@@ -77,17 +77,22 @@ const VideoCall = ({
   };
 
   const setupPeerConnection = async (stream) => {
+    console.log("[PEER] Setting up new peer connection");
     const pc = new RTCPeerConnection(servers);
     peerConnectionRef.current = pc;
 
-    // Log all tracks we're adding to the connection
+    // Add each track to the peer connection
     stream.getTracks().forEach(track => {
-      console.log(`[PEER] Adding ${track.kind} track to connection:`, {
+      const sender = pc.addTrack(track, stream);
+      console.log(`[PEER] Added ${track.kind} track to connection:`, {
         id: track.id,
         enabled: track.enabled,
         muted: track.muted
       });
-      pc.addTrack(track, stream);
+
+      // Monitor sender's parameters
+      const params = sender.getParameters();
+      console.log(`[PEER] ${track.kind} sender parameters:`, params);
     });
 
     // Handle incoming tracks
@@ -104,34 +109,35 @@ const VideoCall = ({
         
         // Handle both audio and video tracks
         if (event.track.kind === 'video' || event.track.kind === 'audio') {
-          // Ensure track is enabled
+          // Force enable the track
           event.track.enabled = true;
           
-          console.log(`[RECEIVER] ${event.track.kind} track received:`, {
+          console.log(`[PEER] ${event.track.kind} track received:`, {
             id: event.track.id,
             enabled: event.track.enabled,
             readyState: event.track.readyState,
             settings: event.track.getSettings()
           });
 
-          if (event.track.kind === 'video') {
-            remoteStreamRef.current = stream;
-            setRemoteStream(stream);
-          }
+          // Set the remote stream
+          remoteStreamRef.current = stream;
+          setRemoteStream(stream);
 
           // Monitor track state
           event.track.onunmute = () => {
-            console.log(`[RECEIVER] ${event.track.kind} track unmuted`);
+            console.log(`[PEER] ${event.track.kind} track unmuted`);
             event.track.enabled = true;
+            if (event.track.kind === 'video' && remoteVideoRef.current) {
+              remoteVideoRef.current.srcObject = stream;
+            }
           };
           
           event.track.onmute = () => {
-            console.log(`[RECEIVER] ${event.track.kind} track muted`);
-            // Don't disable the track when muted
+            console.log(`[PEER] ${event.track.kind} track muted`);
           };
 
           event.track.onended = () => {
-            console.log(`[RECEIVER] ${event.track.kind} track ended`);
+            console.log(`[PEER] ${event.track.kind} track ended`);
           };
         }
       }
@@ -139,59 +145,42 @@ const VideoCall = ({
 
     // Enhanced connection monitoring
     pc.onconnectionstatechange = () => {
-      const state = pc.connectionState;
-      console.log("[PEER] Connection state changed:", state);
-      if (state === 'connected') {
+      console.log("[PEER] Connection state changed:", pc.connectionState);
+      if (pc.connectionState === 'connected') {
         setIsConnected(true);
-        // Log all senders and receivers when connected
-        pc.getSenders().forEach(sender => {
-          console.log('[PEER] Active sender:', {
-            kind: sender.track?.kind,
-            trackEnabled: sender.track?.enabled,
-            trackMuted: sender.track?.muted
-          });
-        });
+        // Check media flow when connected
         pc.getReceivers().forEach(receiver => {
-          console.log('[PEER] Active receiver:', {
-            kind: receiver.track?.kind,
-            trackEnabled: receiver.track?.enabled,
-            trackMuted: receiver.track?.muted
-          });
+          if (receiver.track) {
+            console.log(`[PEER] Receiver track state:`, {
+              kind: receiver.track.kind,
+              enabled: receiver.track.enabled,
+              muted: receiver.track.muted,
+              readyState: receiver.track.readyState
+            });
+          }
         });
       }
     };
 
+    // Monitor ICE connection
     pc.oniceconnectionstatechange = () => {
       console.log("[PEER] ICE connection state:", pc.iceConnectionState);
       if (pc.iceConnectionState === 'connected') {
-        // Double check media flow when ICE connects
+        // Double check media flow
         setTimeout(() => {
-          if (pc.getReceivers) {
-            pc.getReceivers().forEach(receiver => {
-              if (receiver.track) {
-                console.log(`[PEER] Receiver track state after ICE connected:`, {
-                  kind: receiver.track.kind,
-                  enabled: receiver.track.enabled,
-                  muted: receiver.track.muted,
-                  readyState: receiver.track.readyState
-                });
-              }
-            });
-          }
+          console.log("[PEER] Checking media flow after ICE connection");
+          pc.getReceivers().forEach(receiver => {
+            if (receiver.track) {
+              console.log(`[PEER] Receiver track state after ICE:`, {
+                kind: receiver.track.kind,
+                enabled: receiver.track.enabled,
+                muted: receiver.track.muted,
+                readyState: receiver.track.readyState,
+                stats: receiver.getStats()
+              });
+            }
+          });
         }, 1000);
-      }
-    };
-
-    // Monitor for negotiation needed
-    pc.onnegotiationneeded = async () => {
-      console.log("[PEER] Negotiation needed");
-      try {
-        if (pc.signalingState !== "stable") return;
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        // Note: You'll need to send this offer to the other peer
-      } catch (err) {
-        console.error("[PEER] Error during negotiation:", err);
       }
     };
 
@@ -201,22 +190,82 @@ const VideoCall = ({
   const getLocalMedia = async () => {
     try {
       console.log("📹 Getting local media stream");
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 }
-        },
-        audio: true
-      });
       
-      // Enable all tracks explicitly
+      // First check what devices are available
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const hasVideo = devices.some(device => device.kind === 'videoinput');
+      const hasAudio = devices.some(device => device.kind === 'audioinput');
+      
+      console.log("[MEDIA] Available devices:", {
+        video: hasVideo,
+        audio: hasAudio,
+        devices: devices.map(d => ({ kind: d.kind, label: d.label }))
+      });
+
+      // Set up constraints based on available devices
+      const constraints = {
+        video: hasVideo ? {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 30 },
+          facingMode: 'user',
+        } : false,
+        audio: hasAudio ? {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000,
+        } : false
+      };
+
+      console.log("[MEDIA] Requesting media with constraints:", constraints);
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      // Log detailed information about obtained tracks
+      const videoTrack = stream.getVideoTracks()[0];
+      const audioTrack = stream.getAudioTracks()[0];
+      
+      if (videoTrack) {
+        console.log("[MEDIA] Video track obtained:", {
+          id: videoTrack.id,
+          label: videoTrack.label,
+          enabled: videoTrack.enabled,
+          muted: videoTrack.muted,
+          readyState: videoTrack.readyState,
+          settings: videoTrack.getSettings()
+        });
+      }
+      
+      if (audioTrack) {
+        console.log("[MEDIA] Audio track obtained:", {
+          id: audioTrack.id,
+          label: audioTrack.label,
+          enabled: audioTrack.enabled,
+          muted: audioTrack.muted,
+          readyState: audioTrack.readyState,
+          settings: audioTrack.getSettings()
+        });
+      }
+
+      // Explicitly enable all tracks
       stream.getTracks().forEach(track => {
         track.enabled = true;
-        console.log(`Enabled local ${track.kind} track`);
+        console.log(`[MEDIA] Enabled ${track.kind} track:`, {
+          id: track.id,
+          enabled: track.enabled
+        });
+
+        // Set up track ended handler
+        track.onended = () => {
+          console.log(`[MEDIA] ${track.kind} track ended:`, track.id);
+          // Try to restart the track if it ends unexpectedly
+          if (track.kind === 'video' && isVideoOn) {
+            console.log("[MEDIA] Attempting to restart video track");
+            toggleVideo();
+          }
+        };
       });
-      
-      console.log("Local stream obtained with tracks:", 
-        stream.getTracks().map(t => `${t.kind}(enabled=${t.enabled})`).join(', '));
       
       // Store the stream in both ref and state
       localStreamRef.current = stream;
@@ -224,20 +273,41 @@ const VideoCall = ({
       
       // Set up local video
       if (localVideoRef.current) {
-        console.log("Setting up local video element");
+        console.log("[MEDIA] Setting up local video element");
         localVideoRef.current.srcObject = stream;
         try {
           await localVideoRef.current.play();
-          console.log("Local video playing immediately");
+          console.log("[MEDIA] Local video playing");
         } catch (err) {
-          console.warn("Initial local video play failed:", err);
+          console.warn("[MEDIA] Initial local video play failed:", err);
+          // Try again with user interaction
+          const playOnClick = async () => {
+            try {
+              await localVideoRef.current.play();
+              document.removeEventListener('click', playOnClick);
+            } catch (playErr) {
+              console.error("[MEDIA] Play failed even with user interaction:", playErr);
+            }
+          };
+          document.addEventListener('click', playOnClick);
         }
       }
       
       return stream;
     } catch (err) {
-      console.error("🚫 Media access error:", err);
-      toast.error("Failed to access camera or microphone");
+      console.error("[MEDIA] Access error:", err);
+      
+      // Provide more specific error messages
+      if (err.name === 'NotAllowedError') {
+        toast.error("Please allow access to camera and microphone");
+      } else if (err.name === 'NotFoundError') {
+        toast.error("No camera or microphone found");
+      } else if (err.name === 'NotReadableError') {
+        toast.error("Camera or microphone is already in use");
+      } else {
+        toast.error("Failed to access camera or microphone");
+      }
+      
       throw err;
     }
   };
@@ -446,125 +516,220 @@ const VideoCall = ({
     };
   }, [contactId]);
 
+  const toggleVideo = async () => {
+    console.log("[TOGGLE] Starting video toggle");
+    if (!localStreamRef.current) {
+        console.error("[TOGGLE] No local stream available");
+        return;
+    }
+
+    if (!isVideoOn) {
+        // Turning video back on
+        console.log("[TOGGLE] Requesting new video track");
+        try {
+            // Get a fresh video stream
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    frameRate: { ideal: 30 }
+                }
+            });
+
+            const newVideoTrack = newStream.getVideoTracks()[0];
+            if (!newVideoTrack) {
+                throw new Error("No video track in new stream");
+            }
+
+            // Ensure track is enabled and active
+            newVideoTrack.enabled = true;
+            
+            console.log("[TOGGLE] New video track obtained:", {
+                id: newVideoTrack.id,
+                enabled: newVideoTrack.enabled,
+                readyState: newVideoTrack.readyState,
+                settings: newVideoTrack.getSettings()
+            });
+
+            // Stop any existing video track
+            const oldTrack = localStreamRef.current.getVideoTracks()[0];
+            if (oldTrack) {
+                oldTrack.stop();
+                localStreamRef.current.removeTrack(oldTrack);
+            }
+
+            // Add new track to local stream
+            localStreamRef.current.addTrack(newVideoTrack);
+
+            // Update local video display
+            if (localVideoRef.current) {
+                const displayStream = new MediaStream([newVideoTrack]);
+                localVideoRef.current.srcObject = displayStream;
+                
+                try {
+                    await localVideoRef.current.play();
+                    console.log("[TOGGLE] Local video playing");
+                } catch (err) {
+                    console.warn("[TOGGLE] Auto-play failed, will try on user interaction:", err);
+                    const playOnClick = async () => {
+                        try {
+                            await localVideoRef.current.play();
+                            document.removeEventListener('click', playOnClick);
+                        } catch (playErr) {
+                            console.error("[TOGGLE] Play failed even with user interaction:", playErr);
+                        }
+                    };
+                    document.addEventListener('click', playOnClick);
+                }
+            }
+
+            // Replace track in peer connection
+            if (peerConnectionRef.current) {
+                const senders = peerConnectionRef.current.getSenders();
+                const videoSender = senders.find(sender => sender.track?.kind === 'video');
+                if (videoSender) {
+                    await videoSender.replaceTrack(newVideoTrack);
+                    console.log("[TOGGLE] Track replaced in peer connection");
+                } else {
+                    console.log("[TOGGLE] No video sender found, adding new transceiver");
+                    peerConnectionRef.current.addTransceiver(newVideoTrack, {
+                        direction: 'sendrecv'
+                    });
+                }
+            }
+
+            setIsVideoOn(true);
+            console.log("[TOGGLE] Video enabled successfully");
+
+        } catch (err) {
+            console.error("[TOGGLE] Error getting new video track:", err);
+            toast.error("Failed to turn on camera");
+            setIsVideoOn(false);
+            return;
+        }
+    } else {
+        // Turning video off
+        console.log("[TOGGLE] Turning off video");
+        const videoTrack = localStreamRef.current.getVideoTracks()[0];
+        if (videoTrack) {
+            // Disable and stop the track
+            videoTrack.enabled = false;
+            videoTrack.stop();
+            
+            // Remove from local stream
+            localStreamRef.current.removeTrack(videoTrack);
+            
+            // Clear local video display
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = null;
+            }
+            
+            // Update peer connection
+            if (peerConnectionRef.current) {
+                const senders = peerConnectionRef.current.getSenders();
+                const videoSender = senders.find(sender => sender.track?.kind === 'video');
+                if (videoSender) {
+                    await videoSender.replaceTrack(null);
+                    console.log("[TOGGLE] Removed track from peer connection");
+                }
+            }
+        }
+        setIsVideoOn(false);
+        console.log("[TOGGLE] Video disabled successfully");
+    }
+};
+
+  // Add new function to handle local video setup
+  const setupLocalVideo = async (stream) => {
+    console.log("[LOCAL] Setting up local video");
+    if (localVideoRef.current && stream) {
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        console.log("[LOCAL] Video track state:", {
+          id: videoTrack.id,
+          enabled: videoTrack.enabled,
+          readyState: videoTrack.readyState,
+          settings: videoTrack.getSettings()
+        });
+
+        // Create a new MediaStream just for this video element
+        const localDisplayStream = new MediaStream([videoTrack]);
+        localVideoRef.current.srcObject = localDisplayStream;
+
+        try {
+          await localVideoRef.current.play();
+          console.log("[LOCAL] Video playing successfully");
+        } catch (err) {
+          console.error("[LOCAL] Error playing video:", err);
+          // Try again with user interaction
+          const playOnClick = async () => {
+            try {
+              await localVideoRef.current.play();
+              console.log("[LOCAL] Video playing after user interaction");
+            } catch (err) {
+              console.error("[LOCAL] Failed to play even with user interaction:", err);
+            }
+          };
+          document.addEventListener('click', playOnClick, { once: true });
+        }
+      }
+    }
+  };
+
+  // Modify the useEffect for local video
   useEffect(() => {
     if (localVideoRef.current && localStream) {
-      console.log("Setting up local video element");
-      
-      const videoElement = localVideoRef.current;
-      
-      // Only set srcObject if it's not already set
-      if (videoElement.srcObject !== localStream) {
-        videoElement.srcObject = localStream;
-      }
-      
-      const playVideo = async () => {
-        try {
-          await videoElement.play();
-          console.log("Local video playing successfully");
-        } catch (err) {
-          if (err.name === 'AbortError') {
-            console.log("Play interrupted, retrying...");
-            setTimeout(playVideo, 100);
-          } else {
-            console.error("Failed to play local video:", err);
-          }
-        }
-      };
-
-      const handleMetadata = () => {
-        console.log("Local video metadata loaded");
-        playVideo();
-      };
-
-      videoElement.addEventListener('loadedmetadata', handleMetadata);
-
-      return () => {
-        videoElement.removeEventListener('loadedmetadata', handleMetadata);
-        videoElement.srcObject = null;
-      };
+      setupLocalVideo(localStream);
     }
   }, [localStream]);
 
+  // Modify the useEffect for remote video to create separate stream
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
-      console.log("[REMOTE] Setting up remote stream:", {
-        hasVideoTracks: remoteStream.getVideoTracks().length,
-        hasAudioTracks: remoteStream.getAudioTracks().length,
-        videoTrackStates: remoteStream.getVideoTracks().map(t => ({
-          enabled: t.enabled,
-          muted: t.muted,
-          readyState: t.readyState
-        })),
-        audioTrackStates: remoteStream.getAudioTracks().map(t => ({
-          enabled: t.enabled,
-          muted: t.muted,
-          readyState: t.readyState
-        }))
-      });
+      console.log("[REMOTE] Setting up remote video");
+      const videoTrack = remoteStream.getVideoTracks()[0];
+      const audioTrack = remoteStream.getAudioTracks()[0];
+
+      if (videoTrack) {
+        console.log("[REMOTE] Video track state:", {
+          id: videoTrack.id,
+          enabled: videoTrack.enabled,
+          readyState: videoTrack.readyState,
+          settings: videoTrack.getSettings()
+        });
+      }
+
+      // Create a new MediaStream for the remote video
+      const remoteDisplayStream = new MediaStream();
+      if (videoTrack) remoteDisplayStream.addTrack(videoTrack);
+      if (audioTrack) remoteDisplayStream.addTrack(audioTrack);
 
       const videoElement = remoteVideoRef.current;
-
-      // Ensure all tracks are enabled
-      remoteStream.getTracks().forEach(track => {
-        track.enabled = true;
-        console.log(`[REMOTE] Enabled ${track.kind} track:`, {
-          id: track.id,
-          enabled: track.enabled,
-          muted: track.muted
-        });
-      });
-
-      // Configure video element
+      videoElement.srcObject = remoteDisplayStream;
       videoElement.playsInline = true;
       videoElement.autoplay = true;
-      videoElement.muted = false; // Ensure audio is not muted
+      videoElement.muted = false;
 
-      // Set up event listeners
-      const handleCanPlay = () => {
-        console.log("[REMOTE] Video can play, attempting autoplay");
-        videoElement.play()
-          .then(() => {
-            console.log("[REMOTE] Playback started successfully");
-            // Double check audio state
-            videoElement.muted = false;
-          })
-          .catch(err => {
-            console.error("[REMOTE] Autoplay failed:", err);
-            // Try playing on user interaction
-            const playOnInteraction = () => {
-              videoElement.play()
-                .then(() => {
-                  console.log("[REMOTE] Playback started after user interaction");
-                  videoElement.muted = false;
-                })
-                .catch(console.error);
-              document.removeEventListener('click', playOnInteraction);
-            };
-            document.addEventListener('click', playOnInteraction);
-          });
-      };
-
-      const handleLoadedMetadata = () => {
-        console.log("[REMOTE] Video metadata loaded:", {
-          videoWidth: videoElement.videoWidth,
-          videoHeight: videoElement.videoHeight,
-          muted: videoElement.muted
+      videoElement.play()
+        .then(() => console.log("[REMOTE] Playback started"))
+        .catch(err => {
+          console.error("[REMOTE] Playback failed:", err);
+          // Try playing on user interaction
+          const playOnClick = async () => {
+            try {
+              await videoElement.play();
+              console.log("[REMOTE] Playback started after user interaction");
+            } catch (err) {
+              console.error("[REMOTE] Failed to play even with user interaction:", err);
+            }
+          };
+          document.addEventListener('click', playOnClick, { once: true });
         });
-      };
-
-      videoElement.addEventListener('canplay', handleCanPlay);
-      videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
-
-      // Set srcObject and force a play attempt
-      videoElement.srcObject = remoteStream;
-      videoElement.play().catch(err => {
-        console.log("[REMOTE] Initial play failed, waiting for user interaction:", err);
-      });
 
       return () => {
-        videoElement.removeEventListener('canplay', handleCanPlay);
-        videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
         if (videoElement.srcObject) {
+          const tracks = videoElement.srcObject.getTracks();
+          tracks.forEach(track => track.stop());
           videoElement.srcObject = null;
         }
       };
@@ -572,42 +737,44 @@ const VideoCall = ({
   }, [remoteStream]);
 
   const toggleMic = () => {
+    console.log("[TOGGLE] Toggling microphone");
     if (localStreamRef.current) {
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
         setIsMicOn(audioTrack.enabled);
-        console.log(`Microphone ${audioTrack.enabled ? 'enabled' : 'disabled'}`);
-      }
-    }
-  };
+        console.log(`[TOGGLE] Microphone ${audioTrack.enabled ? 'enabled' : 'disabled'}`);
 
-  const toggleVideo = () => {
-    if (localStreamRef.current) {
-      const videoTrack = localStreamRef.current.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setIsVideoOn(videoTrack.enabled);
-        
-        // If turning video back on, ensure it's displayed
-        if (videoTrack.enabled && localVideoRef.current) {
-          console.log("Refreshing local video display");
-          const stream = localStreamRef.current;
-          localVideoRef.current.srcObject = null;
-          localVideoRef.current.srcObject = stream;
-          localVideoRef.current.play().catch(console.error);
-        }
-        
-        // Notify peer about video state
+        // Update the track in peer connection
         if (peerConnectionRef.current) {
-          const sender = peerConnectionRef.current.getSenders()
-            .find(s => s.track?.kind === 'video');
-          if (sender) {
-            sender.track.enabled = videoTrack.enabled;
+          const senders = peerConnectionRef.current.getSenders();
+          const audioSender = senders.find(sender => sender.track?.kind === 'audio');
+          if (audioSender && audioSender.track) {
+            audioSender.track.enabled = audioTrack.enabled;
           }
         }
       }
     }
+  };
+
+  // Add new function to handle track replacement
+  const replaceTrack = async (newTrack, kind) => {
+    console.log(`[PEER] Replacing ${kind} track`);
+    if (peerConnectionRef.current) {
+      const senders = peerConnectionRef.current.getSenders();
+      const sender = senders.find(s => s.track?.kind === kind);
+      if (sender) {
+        try {
+          await sender.replaceTrack(newTrack);
+          console.log(`[PEER] Successfully replaced ${kind} track`);
+          return true;
+        } catch (err) {
+          console.error(`[PEER] Error replacing ${kind} track:`, err);
+          return false;
+        }
+      }
+    }
+    return false;
   };
 
   return (

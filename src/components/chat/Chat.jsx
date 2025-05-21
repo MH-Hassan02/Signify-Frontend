@@ -18,6 +18,7 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [someoneTyping, setSomeoneTyping] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
   const chatMessagesRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -99,10 +100,17 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
 
     const handleScroll = () => {
       if (!chatContainer) return;
+      
       const isAtBottom =
-        chatContainer.scrollHeight - chatContainer.scrollTop ===
-        chatContainer.clientHeight;
+        Math.abs(
+          chatContainer.scrollHeight - 
+          chatContainer.scrollTop - 
+          chatContainer.clientHeight
+        ) < 10;
+      
       setShowScrollToBottom(!isAtBottom);
+      
+      setShouldAutoScroll(isAtBottom);
     };
 
     if (chatContainer) {
@@ -114,11 +122,23 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
         chatContainer.removeEventListener("scroll", handleScroll);
       }
     };
-  }, [chatMessagesRef.current]);
+  }, []);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = (force = false) => {
+    if (force || shouldAutoScroll) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   };
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      if (messages.length === 1) {
+        scrollToBottom(true);
+      } else {
+        scrollToBottom();
+      }
+    }
+  }, [messages]);
 
   const sendMessage = async () => {
     if (!input.trim()) return;
@@ -162,8 +182,6 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
   };
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-
     const markAsRead = async () => {
       if (selectedContact) {
         try {
@@ -252,7 +270,13 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
           </div>
 
           {showScrollToBottom && (
-            <button className="scrollToBottomBtn" onClick={scrollToBottom}>
+            <button 
+              className="scrollToBottomBtn" 
+              onClick={() => {
+                scrollToBottom(true);
+                setShouldAutoScroll(true);
+              }}
+            >
               <FaArrowDown />
             </button>
           )}
