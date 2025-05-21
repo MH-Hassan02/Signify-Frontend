@@ -41,7 +41,7 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
             { withCredentials: true }
           );
           setMessages(res.data);
-          setIsInitialLoad(true); // Reset initial load when contact changes
+          setIsInitialLoad(true);
 
           await axios.put(
             `${import.meta.env.VITE_BASE_URL}/messages/markAsRead`,
@@ -49,7 +49,7 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
             { withCredentials: true }
           );
         } catch (error) {
-          toast.error("Error fetching messages");
+          toast.info("No Messages Yet");
         }
       }
     };

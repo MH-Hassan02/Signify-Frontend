@@ -68,76 +68,75 @@
 }
 
 .modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-  }
-  
-  .modalContent {
-    background: #141414;
-    padding: 20px;
-    border-radius: 8px;
-    width: 350px;
-    color: var(--text-color);
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-  }
-  
-  .modalContent input {
-    height: 35px;
-    padding: 10px;
-    border-radius: 5px;
-    border: none;
-    font-size: 14px;
-    background: #2a2a2a;
-    color: var(--text-color);
-    outline: none;
-  }
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
 
-  .modalContent .btnSearch{
-    height: 30px;
-  }
-  
-  .userCard {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background-color: #2e2e2e;
-    padding: 10px;
-    border-radius: 6px;
-  }
-  
-  .userCard img {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-  }
-  
-  .userCard button {
-    margin-left: auto;
-    background: #00bfa5;
-    color: white;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 20px;
-    cursor: pointer;
-  }
-  
-  .closeBtn {
-    background-color: var(--secondary-color);
-    color: white;
-    padding: 8px 12px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    align-self: flex-end;
-  }
-  
+.modalContent {
+  background: #141414;
+  padding: 20px;
+  border-radius: 8px;
+  width: 350px;
+  color: var(--text-color);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.modalContent input {
+  height: 35px;
+  padding: 10px;
+  border-radius: 5px;
+  border: none;
+  font-size: 14px;
+  background: #2a2a2a;
+  color: var(--text-color);
+  outline: none;
+}
+
+.modalContent .btnSearch {
+  height: 30px;
+}
+
+.userCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: #2e2e2e;
+  padding: 10px;
+  border-radius: 6px;
+}
+
+.userCard img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.userCard button {
+  margin-left: auto;
+  background: #00bfa5;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+.closeBtn {
+  background-color: var(--secondary-color);
+  color: white;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  align-self: flex-end;
+}
