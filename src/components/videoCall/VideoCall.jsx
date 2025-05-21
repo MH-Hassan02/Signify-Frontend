@@ -331,27 +331,8 @@ const VideoCall = ({
         const newVideoTrack = newStream.getVideoTracks()[0];
         if (!newVideoTrack) throw new Error("No video track in new stream");
 
-        console.log("[VIDEO] New track created:", {
-          enabled: newVideoTrack.enabled,
-          readyState: newVideoTrack.readyState
-        });
-
-        // Stop old track if exists
-        const oldTrack = localStreamRef.current?.getVideoTracks()[0];
-        if (oldTrack) {
-          oldTrack.stop();
-          localStreamRef.current.removeTrack(oldTrack);
-        }
-
-        // Add new track to local stream
-        newVideoTrack.enabled = true;
-        if (localStreamRef.current) {
-          localStreamRef.current.addTrack(newVideoTrack);
-        }
-
-        // Set up local video display
+        // Update local display first
         if (localVideoRef.current) {
-          // Create a new MediaStream with just the video track
           const displayStream = new MediaStream([newVideoTrack]);
           localVideoRef.current.srcObject = displayStream;
           await localVideoRef.current.play().catch(console.error);
@@ -363,30 +344,37 @@ const VideoCall = ({
           const videoSender = senders.find(s => s.track?.kind === 'video');
           
           if (videoSender) {
-            await videoSender.replaceTrack(newVideoTrack);
-            console.log("[VIDEO] Track replaced in peer connection");
-          } else {
-            peerConnectionRef.current.addTrack(newVideoTrack, localStreamRef.current);
-            console.log("[VIDEO] New track added to peer connection");
-          }
-
-          // Renegotiate with a delay to ensure track is properly set up
-          setTimeout(async () => {
             try {
-              const offer = await peerConnectionRef.current.createOffer({
-                offerToReceiveAudio: true,
-                offerToReceiveVideo: true
-              });
+              await videoSender.replaceTrack(newVideoTrack);
+              console.log("[VIDEO] Track replaced in peer connection");
+              
+              // Ensure the track is enabled
+              newVideoTrack.enabled = true;
+              
+              // Update the local stream reference
+              const oldTrack = localStreamRef.current?.getVideoTracks()[0];
+              if (oldTrack) {
+                oldTrack.stop();
+                localStreamRef.current.removeTrack(oldTrack);
+              }
+              localStreamRef.current.addTrack(newVideoTrack);
+              
+              // Create a new offer to ensure proper negotiation
+              const offer = await peerConnectionRef.current.createOffer();
               await peerConnectionRef.current.setLocalDescription(offer);
               
               socket.emit("call-update", {
                 to: contactId,
-                offer: peerConnectionRef.current.localDescription
+                offer: offer
               });
             } catch (err) {
-              console.error("[VIDEO] Renegotiation failed:", err);
+              console.error("[VIDEO] Failed to replace track:", err);
+              // Fallback: Add as new track if replace fails
+              peerConnectionRef.current.addTrack(newVideoTrack, localStreamRef.current);
             }
-          }, 500);
+          } else {
+            peerConnectionRef.current.addTrack(newVideoTrack, localStreamRef.current);
+          }
         }
 
         setIsVideoOn(true);
@@ -394,33 +382,45 @@ const VideoCall = ({
         // Turning video off
         const videoTrack = localStreamRef.current?.getVideoTracks()[0];
         if (videoTrack) {
-          console.log("[VIDEO] Disabling track");
+          // Create black canvas stream for local display
+          const blackCanvas = document.createElement('canvas');
+          blackCanvas.width = 640;
+          blackCanvas.height = 480;
+          const ctx = blackCanvas.getContext('2d');
+          ctx.fillStyle = 'black';
+          ctx.fillRect(0, 0, blackCanvas.width, blackCanvas.height);
           
-          // Just disable the track instead of stopping it
-          videoTrack.enabled = false;
+          const blackStream = blackCanvas.captureStream();
+          const blackTrack = blackStream.getVideoTracks()[0];
+
+          // Update local display
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = blackStream;
+          }
 
           // Update peer connection
           if (peerConnectionRef.current) {
             const senders = peerConnectionRef.current.getSenders();
             const videoSender = senders.find(s => s.track?.kind === 'video');
             
-            if (videoSender && videoSender.track) {
-              videoSender.track.enabled = false;
-              console.log("[VIDEO] Disabled track in peer connection");
+            if (videoSender) {
+              try {
+                await videoSender.replaceTrack(blackTrack);
+                console.log("[VIDEO] Replaced with black track in peer connection");
+                
+                // Create a new offer
+                const offer = await peerConnectionRef.current.createOffer();
+                await peerConnectionRef.current.setLocalDescription(offer);
+                
+                socket.emit("call-update", {
+                  to: contactId,
+                  offer: offer
+                });
+              } catch (err) {
+                console.error("[VIDEO] Failed to replace with black track:", err);
+                videoTrack.enabled = false;
+              }
             }
-          }
-
-          // Clear local video display
-          if (localVideoRef.current) {
-            const blackCanvas = document.createElement('canvas');
-            blackCanvas.width = 640;
-            blackCanvas.height = 480;
-            const ctx = blackCanvas.getContext('2d');
-            ctx.fillStyle = 'black';
-            ctx.fillRect(0, 0, blackCanvas.width, blackCanvas.height);
-            
-            const blackStream = blackCanvas.captureStream();
-            localVideoRef.current.srcObject = blackStream;
           }
         }
         setIsVideoOn(false);
@@ -428,7 +428,6 @@ const VideoCall = ({
     } catch (err) {
       console.error("[VIDEO] Error:", err);
       toast.error("Failed to toggle video");
-      setIsVideoOn(false);
     } finally {
       videoToggleLock.current = false;
     }
@@ -658,7 +657,7 @@ const VideoCall = ({
         
         socket.emit("call-update-answer", {
           to: contactId,
-          answer: peerConnectionRef.current.localDescription
+          answer: answer
         });
       } catch (err) {
         console.error("[UPDATE] Error handling call update:", err);
@@ -669,9 +668,9 @@ const VideoCall = ({
       if (!peerConnectionRef.current) return;
       try {
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
-        console.log("[UPDATE] Call update completed");
+        console.log("[UPDATE] Successfully updated remote description");
       } catch (err) {
-        console.error("[UPDATE] Error setting update answer:", err);
+        console.error("[UPDATE] Error setting remote description:", err);
       }
     });
 
@@ -684,6 +683,36 @@ const VideoCall = ({
       endCall();
     };
   }, [contactId]);
+
+  // Enhanced connection state monitoring
+  useEffect(() => {
+    const pc = peerConnectionRef.current;
+    if (!pc) return;
+
+    const handleConnectionStateChange = () => {
+      console.log("[CONN] Connection state:", pc.connectionState);
+      if (pc.connectionState === 'failed') {
+        // Attempt recovery
+        try {
+          pc.restartIce();
+          const senders = pc.getSenders();
+          senders.forEach(async sender => {
+            if (sender.track) {
+              sender.track.enabled = true;
+              if (sender.track.kind === 'video' && !isVideoOn) {
+                sender.track.enabled = false;
+              }
+            }
+          });
+        } catch (err) {
+          console.error("[CONN] Recovery failed:", err);
+        }
+      }
+    };
+
+    pc.addEventListener('connectionstatechange', handleConnectionStateChange);
+    return () => pc.removeEventListener('connectionstatechange', handleConnectionStateChange);
+  }, [isVideoOn]);
 
   return (
     <div className="videoCallWrapper">
