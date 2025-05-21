@@ -137,31 +137,50 @@ const VideoCall = ({
 
     // Handle incoming tracks
     pc.ontrack = async (event) => {
-      console.log(`[PEER] Received ${event.track.kind} track:`, {
-        id: event.track.id,
-        enabled: event.track.enabled
-      });
-      
       if (event.streams && event.streams[0]) {
         const stream = event.streams[0];
+        console.log("[REMOTE] Track received:", {
+          kind: event.track.kind,
+          enabled: event.track.enabled,
+          readyState: event.track.readyState,
+          muted: event.track.muted
+        });
         
-        // Enable tracks explicitly
+        // Force enable the track
         event.track.enabled = true;
         
-        // Update remote stream
+        // Store the remote stream
         remoteStreamRef.current = stream;
         setRemoteStream(stream);
         
         // Set up remote video display
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = stream;
+        if (event.track.kind === 'video' && remoteVideoRef.current) {
+          console.log("[REMOTE] Setting up video display");
+          
+          // Create a new MediaStream with just this track to ensure clean display
+          const videoStream = new MediaStream([event.track]);
+          remoteVideoRef.current.srcObject = videoStream;
+          
           try {
             await remoteVideoRef.current.play();
-            console.log("[REMOTE] Video playback started");
+            console.log("[REMOTE] Video playback started, track state:", {
+              enabled: event.track.enabled,
+              readyState: event.track.readyState
+            });
           } catch (err) {
             console.error("[REMOTE] Failed to start video playback:", err);
           }
         }
+
+        // Monitor track state changes
+        event.track.onmute = () => {
+          console.log(`[REMOTE] Track muted:`, event.track.kind);
+        };
+        
+        event.track.onunmute = () => {
+          console.log(`[REMOTE] Track unmuted:`, event.track.kind);
+          event.track.enabled = true;
+        };
       }
     };
 
@@ -293,20 +312,11 @@ const VideoCall = ({
 
   // Modified video toggle
   const toggleVideo = async () => {
-    if (videoToggleLock.current) {
-      console.log("[TOGGLE] Video toggle already in progress");
-      return;
-    }
-    
-    if (!isConnected) {
-      console.log("[TOGGLE] Waiting for connection to be established");
-      toast.info("Please wait for connection to establish");
-      return;
-    }
+    if (videoToggleLock.current) return;
     
     try {
       videoToggleLock.current = true;
-      console.log("[TOGGLE] Starting video toggle, current state:", isVideoOn);
+      console.log("[VIDEO] Current state:", isVideoOn ? "OFF" : "ON");
 
       if (!isVideoOn) {
         // Turning video on
@@ -320,6 +330,11 @@ const VideoCall = ({
 
         const newVideoTrack = newStream.getVideoTracks()[0];
         if (!newVideoTrack) throw new Error("No video track in new stream");
+
+        console.log("[VIDEO] New track created:", {
+          enabled: newVideoTrack.enabled,
+          readyState: newVideoTrack.readyState
+        });
 
         // Stop old track if exists
         const oldTrack = localStreamRef.current?.getVideoTracks()[0];
@@ -336,56 +351,28 @@ const VideoCall = ({
 
         // Set up local video display
         if (localVideoRef.current) {
+          // Create a new MediaStream with just the video track
           const displayStream = new MediaStream([newVideoTrack]);
           localVideoRef.current.srcObject = displayStream;
           await localVideoRef.current.play().catch(console.error);
         }
 
         // Update peer connection
-        if (peerConnectionRef.current && isConnected) {
+        if (peerConnectionRef.current) {
           const senders = peerConnectionRef.current.getSenders();
           const videoSender = senders.find(s => s.track?.kind === 'video');
           
           if (videoSender) {
             await videoSender.replaceTrack(newVideoTrack);
+            console.log("[VIDEO] Track replaced in peer connection");
           } else {
             peerConnectionRef.current.addTrack(newVideoTrack, localStreamRef.current);
+            console.log("[VIDEO] New track added to peer connection");
           }
 
-          // Renegotiate
-          const offer = await peerConnectionRef.current.createOffer({
-            offerToReceiveAudio: true,
-            offerToReceiveVideo: true
-          });
-          await peerConnectionRef.current.setLocalDescription(offer);
-          
-          socket.emit("call-update", {
-            to: contactId,
-            offer: peerConnectionRef.current.localDescription
-          });
-        }
-
-        setIsVideoOn(true);
-      } else {
-        // Turning video off
-        const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-        if (videoTrack) {
-          videoTrack.stop();
-          localStreamRef.current.removeTrack(videoTrack);
-
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = null;
-          }
-
-          // Update peer connection
-          if (peerConnectionRef.current && isConnected) {
-            const senders = peerConnectionRef.current.getSenders();
-            const videoSender = senders.find(s => s.track?.kind === 'video');
-            
-            if (videoSender) {
-              await videoSender.replaceTrack(null);
-              
-              // Renegotiate
+          // Renegotiate with a delay to ensure track is properly set up
+          setTimeout(async () => {
+            try {
               const offer = await peerConnectionRef.current.createOffer({
                 offerToReceiveAudio: true,
                 offerToReceiveVideo: true
@@ -396,13 +383,50 @@ const VideoCall = ({
                 to: contactId,
                 offer: peerConnectionRef.current.localDescription
               });
+            } catch (err) {
+              console.error("[VIDEO] Renegotiation failed:", err);
             }
+          }, 500);
+        }
+
+        setIsVideoOn(true);
+      } else {
+        // Turning video off
+        const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+        if (videoTrack) {
+          console.log("[VIDEO] Disabling track");
+          
+          // Just disable the track instead of stopping it
+          videoTrack.enabled = false;
+
+          // Update peer connection
+          if (peerConnectionRef.current) {
+            const senders = peerConnectionRef.current.getSenders();
+            const videoSender = senders.find(s => s.track?.kind === 'video');
+            
+            if (videoSender && videoSender.track) {
+              videoSender.track.enabled = false;
+              console.log("[VIDEO] Disabled track in peer connection");
+            }
+          }
+
+          // Clear local video display
+          if (localVideoRef.current) {
+            const blackCanvas = document.createElement('canvas');
+            blackCanvas.width = 640;
+            blackCanvas.height = 480;
+            const ctx = blackCanvas.getContext('2d');
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, blackCanvas.width, blackCanvas.height);
+            
+            const blackStream = blackCanvas.captureStream();
+            localVideoRef.current.srcObject = blackStream;
           }
         }
         setIsVideoOn(false);
       }
     } catch (err) {
-      console.error("[TOGGLE] Video toggle failed:", err);
+      console.error("[VIDEO] Error:", err);
       toast.error("Failed to toggle video");
       setIsVideoOn(false);
     } finally {
