@@ -18,10 +18,11 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [someoneTyping, setSomeoneTyping] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
-
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
   const chatMessagesRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const prevMessagesLength = useRef(0);
   const currentUser = useSelector((state) => state.user.userInfo);
   const { incomingCall, setIncomingCall, isCalling } = useVideoCall();
 
@@ -40,6 +41,7 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
             { withCredentials: true }
           );
           setMessages(res.data);
+          setIsInitialLoad(true); // Reset initial load when contact changes
 
           await axios.put(
             `${import.meta.env.VITE_BASE_URL}/messages/markAsRead`,
@@ -53,7 +55,7 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
     };
 
     fetchMessages();
-  }, [selectedContact, messages]);
+  }, [selectedContact]); // Remove messages dependency to fix infinite loop
 
   useEffect(() => {
     console.log(selectedContact, "selectedContact");
@@ -95,50 +97,47 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
     }
   }, [input]);
 
+  // Handle scroll behavior and auto-scroll
   useEffect(() => {
     const chatContainer = chatMessagesRef.current;
+    if (!chatContainer) return;
 
     const handleScroll = () => {
-      if (!chatContainer) return;
-      
       const isAtBottom =
         Math.abs(
-          chatContainer.scrollHeight - 
-          chatContainer.scrollTop - 
+          chatContainer.scrollHeight -
+          chatContainer.scrollTop -
           chatContainer.clientHeight
         ) < 10;
-      
+
       setShowScrollToBottom(!isAtBottom);
-      
-      setShouldAutoScroll(isAtBottom);
     };
 
-    if (chatContainer) {
-      chatContainer.addEventListener("scroll", handleScroll);
+    // Auto scroll in two cases:
+    // 1. Initial load
+    // 2. New message arrives while at bottom
+    if (messages.length > prevMessagesLength.current && isInitialLoad) {
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+        setIsInitialLoad(false);
+      });
+    } else if (messages.length > prevMessagesLength.current && !showScrollToBottom) {
+      // If we're already at bottom when new message arrives
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      });
     }
+    
+    prevMessagesLength.current = messages.length;
 
-    return () => {
-      if (chatContainer) {
-        chatContainer.removeEventListener("scroll", handleScroll);
-      }
-    };
-  }, []);
+    chatContainer.addEventListener("scroll", handleScroll);
+    return () => chatContainer.removeEventListener("scroll", handleScroll);
+  }, [messages, isInitialLoad]);
 
-  const scrollToBottom = (force = false) => {
-    if (force || shouldAutoScroll) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    setShowScrollToBottom(false);
   };
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      if (messages.length === 1) {
-        scrollToBottom(true);
-      } else {
-        scrollToBottom();
-      }
-    }
-  }, [messages]);
 
   const sendMessage = async () => {
     if (!input.trim()) return;
@@ -272,10 +271,7 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
           {showScrollToBottom && (
             <button 
               className="scrollToBottomBtn" 
-              onClick={() => {
-                scrollToBottom(true);
-                setShouldAutoScroll(true);
-              }}
+              onClick={scrollToBottom}
             >
               <FaArrowDown />
             </button>

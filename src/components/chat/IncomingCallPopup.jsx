@@ -52,7 +52,7 @@ const IncomingCallPopup = () => {
         socket.off("call-ended", handleCallEnded);
       };
     }
-  }, [incomingCall, setIncomingCall]);
+  }, [incomingCall]);
 
   if (!incomingCall) return null;
 
