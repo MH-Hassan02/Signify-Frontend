@@ -42,10 +42,11 @@ const IncomingCallPopup = () => {
     try {
       setIsCalling(true);
 
-      socket.emit("answer-call", {
-        to: incomingCall.from._id,
-        answer: incomingCall.offer,
-      });
+      // Store the offer before clearing incomingCall
+      const callData = {
+        offer: incomingCall.offer,
+        from: incomingCall.from
+      };
 
       setIncomingCall(null);
 
@@ -55,11 +56,16 @@ const IncomingCallPopup = () => {
         username: incomingCall.from.username,
       };
 
+      // Pass the offer in the navigation state
       navigate("/calls", {
-        state: { selectedContact, isIncomingCall: true },
+        state: { 
+          selectedContact, 
+          isIncomingCall: true,
+          callData  // Pass the offer and caller info
+        },
       });
 
-      console.log("Call accepted, navigating to the call screen...");
+      console.log("Call accepted, navigating to the call screen with offer data");
     } catch (err) {
       console.error("Error accepting the call:", err);
       toast.error("Failed to accept call.");

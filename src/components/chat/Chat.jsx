@@ -25,6 +25,10 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
   const { incomingCall, setIncomingCall, isCalling } = useVideoCall();
 
   useEffect(() => {
+    socket.emit("setup", currentUser);
+  }, [currentUser]);
+
+  useEffect(() => {
     const fetchMessages = async () => {
       if (selectedContact) {
         try {
@@ -48,15 +52,22 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
     };
 
     fetchMessages();
-  }, [selectedContact]);
+  }, [selectedContact, messages]);
 
   useEffect(() => {
+    console.log(selectedContact, "selectedContact");
     socket.on("typing", ({ from }) => {
-      if (from === selectedContact._id) setSomeoneTyping(true);
+      if (from === selectedContact._id) {
+        console.log("Typing bubble actuve");
+        setSomeoneTyping(true);
+      }
     });
 
     socket.on("stop typing", ({ from }) => {
-      if (from === selectedContact._id) setSomeoneTyping(false);
+      if (from === selectedContact._id) {
+        console.log("Typing bubble stopping");
+        setSomeoneTyping(false);
+      }
     });
 
     return () => {
@@ -85,36 +96,25 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
 
   useEffect(() => {
     const chatContainer = chatMessagesRef.current;
-    let scrollTimeout;
-    let isUserAtBottom = true;
-  
+
     const handleScroll = () => {
       if (!chatContainer) return;
-      const atBottom =
-        chatContainer.scrollHeight - chatContainer.scrollTop <=
-        chatContainer.clientHeight + 10;
-  
-      isUserAtBottom = atBottom;
-  
-      if (!atBottom) {
-        clearTimeout(scrollTimeout);
-        scrollTimeout = setTimeout(() => {
-          setShowScrollToBottom(true);
-        }, 200);
-      } else {
-        clearTimeout(scrollTimeout);
-        setShowScrollToBottom(false);
+      const isAtBottom =
+        chatContainer.scrollHeight - chatContainer.scrollTop ===
+        chatContainer.clientHeight;
+      setShowScrollToBottom(!isAtBottom);
+    };
+
+    if (chatContainer) {
+      chatContainer.addEventListener("scroll", handleScroll);
+    }
+
+    return () => {
+      if (chatContainer) {
+        chatContainer.removeEventListener("scroll", handleScroll);
       }
     };
-  
-    chatContainer?.addEventListener("scroll", handleScroll);
-  
-    return () => {
-      chatContainer?.removeEventListener("scroll", handleScroll);
-      clearTimeout(scrollTimeout);
-    };
-  }, []);
-  
+  }, [chatMessagesRef.current]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -181,32 +181,20 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
     markAsRead();
   }, [messages, someoneTyping]);
 
-useEffect(() => {
-  socket.on("message received", (newMsg) => {
-    if (
-      newMsg.sender._id === selectedContact._id ||
-      newMsg.receiver === selectedContact._id
-    ) {
-      setMessages((prev) => [...prev, newMsg]);
-
-      const chatContainer = chatMessagesRef.current;
-      const atBottom =
-        chatContainer.scrollHeight - chatContainer.scrollTop <=
-        chatContainer.clientHeight + 10;
-
-      if (atBottom) {
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        }, 50);
+  useEffect(() => {
+    socket.on("message received", (newMsg) => {
+      if (
+        newMsg.sender._id === selectedContact._id ||
+        newMsg.receiver === selectedContact._id
+      ) {
+        setMessages((prev) => [...prev, newMsg]);
       }
-    }
-  });
+    });
 
-  return () => {
-    socket.off("message received");
-  };
-}, [selectedContact]);
-
+    return () => {
+      socket.off("message received");
+    };
+  }, [selectedContact]);
 
   return (
     <div className="chatMain">
