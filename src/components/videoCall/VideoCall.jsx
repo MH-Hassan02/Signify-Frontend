@@ -80,43 +80,118 @@ const VideoCall = ({
     const pc = new RTCPeerConnection(servers);
     peerConnectionRef.current = pc;
 
-    // Set up transceivers with specific codec preferences
-    const videoTransceiver = pc.addTransceiver('video', {
-      direction: 'sendrecv',
-      streams: [stream]
-    });
-    const audioTransceiver = pc.addTransceiver('audio', {
-      direction: 'sendrecv',
-      streams: [stream]
+    // Log all tracks we're adding to the connection
+    stream.getTracks().forEach(track => {
+      console.log(`[PEER] Adding ${track.kind} track to connection:`, {
+        id: track.id,
+        enabled: track.enabled,
+        muted: track.muted
+      });
+      pc.addTrack(track, stream);
     });
 
     // Handle incoming tracks
     pc.ontrack = (event) => {
+      console.log(`[PEER] Received ${event.track.kind} track:`, {
+        id: event.track.id,
+        enabled: event.track.enabled,
+        muted: event.track.muted,
+        readyState: event.track.readyState
+      });
+
       if (event.streams && event.streams[0]) {
         const stream = event.streams[0];
         
-        if (event.track.kind === 'video') {
-          console.log("[RECEIVER] Video track received:", {
+        // Handle both audio and video tracks
+        if (event.track.kind === 'video' || event.track.kind === 'audio') {
+          // Ensure track is enabled
+          event.track.enabled = true;
+          
+          console.log(`[RECEIVER] ${event.track.kind} track received:`, {
             id: event.track.id,
             enabled: event.track.enabled,
             readyState: event.track.readyState,
             settings: event.track.getSettings()
           });
 
-          remoteStreamRef.current = stream;
-          setRemoteStream(stream);
+          if (event.track.kind === 'video') {
+            remoteStreamRef.current = stream;
+            setRemoteStream(stream);
+          }
 
-          // Monitor video track state
-          event.track.onunmute = () => console.log("[RECEIVER] Video track unmuted");
-          event.track.onmute = () => console.log("[RECEIVER] Video track muted");
+          // Monitor track state
+          event.track.onunmute = () => {
+            console.log(`[RECEIVER] ${event.track.kind} track unmuted`);
+            event.track.enabled = true;
+          };
+          
+          event.track.onmute = () => {
+            console.log(`[RECEIVER] ${event.track.kind} track muted`);
+            // Don't disable the track when muted
+          };
+
+          event.track.onended = () => {
+            console.log(`[RECEIVER] ${event.track.kind} track ended`);
+          };
         }
       }
     };
 
-    // Handle connection state changes
+    // Enhanced connection monitoring
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'connected') {
+      const state = pc.connectionState;
+      console.log("[PEER] Connection state changed:", state);
+      if (state === 'connected') {
         setIsConnected(true);
+        // Log all senders and receivers when connected
+        pc.getSenders().forEach(sender => {
+          console.log('[PEER] Active sender:', {
+            kind: sender.track?.kind,
+            trackEnabled: sender.track?.enabled,
+            trackMuted: sender.track?.muted
+          });
+        });
+        pc.getReceivers().forEach(receiver => {
+          console.log('[PEER] Active receiver:', {
+            kind: receiver.track?.kind,
+            trackEnabled: receiver.track?.enabled,
+            trackMuted: receiver.track?.muted
+          });
+        });
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log("[PEER] ICE connection state:", pc.iceConnectionState);
+      if (pc.iceConnectionState === 'connected') {
+        // Double check media flow when ICE connects
+        setTimeout(() => {
+          if (pc.getReceivers) {
+            pc.getReceivers().forEach(receiver => {
+              if (receiver.track) {
+                console.log(`[PEER] Receiver track state after ICE connected:`, {
+                  kind: receiver.track.kind,
+                  enabled: receiver.track.enabled,
+                  muted: receiver.track.muted,
+                  readyState: receiver.track.readyState
+                });
+              }
+            });
+          }
+        }, 1000);
+      }
+    };
+
+    // Monitor for negotiation needed
+    pc.onnegotiationneeded = async () => {
+      console.log("[PEER] Negotiation needed");
+      try {
+        if (pc.signalingState !== "stable") return;
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        // Note: You'll need to send this offer to the other peer
+      } catch (err) {
+        console.error("[PEER] Error during negotiation:", err);
       }
     };
 
@@ -412,34 +487,83 @@ const VideoCall = ({
 
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
-      const videoElement = remoteVideoRef.current;
-      const videoTrack = remoteStream.getVideoTracks()[0];
+      console.log("[REMOTE] Setting up remote stream:", {
+        hasVideoTracks: remoteStream.getVideoTracks().length,
+        hasAudioTracks: remoteStream.getAudioTracks().length,
+        videoTrackStates: remoteStream.getVideoTracks().map(t => ({
+          enabled: t.enabled,
+          muted: t.muted,
+          readyState: t.readyState
+        })),
+        audioTrackStates: remoteStream.getAudioTracks().map(t => ({
+          enabled: t.enabled,
+          muted: t.muted,
+          readyState: t.readyState
+        }))
+      });
 
-      if (videoTrack) {
-        console.log("[VIDEO SETUP] Remote video track:", {
-          id: videoTrack.id,
-          enabled: videoTrack.enabled,
-          readyState: videoTrack.readyState,
-          settings: videoTrack.getSettings()
+      const videoElement = remoteVideoRef.current;
+
+      // Ensure all tracks are enabled
+      remoteStream.getTracks().forEach(track => {
+        track.enabled = true;
+        console.log(`[REMOTE] Enabled ${track.kind} track:`, {
+          id: track.id,
+          enabled: track.enabled,
+          muted: track.muted
         });
-      }
+      });
 
       // Configure video element
       videoElement.playsInline = true;
       videoElement.autoplay = true;
+      videoElement.muted = false; // Ensure audio is not muted
 
-      // Set up event listeners before setting srcObject
+      // Set up event listeners
       const handleCanPlay = () => {
+        console.log("[REMOTE] Video can play, attempting autoplay");
         videoElement.play()
-          .then(() => console.log("[VIDEO] Playback started"))
-          .catch(err => console.error("[VIDEO] Play failed:", err));
+          .then(() => {
+            console.log("[REMOTE] Playback started successfully");
+            // Double check audio state
+            videoElement.muted = false;
+          })
+          .catch(err => {
+            console.error("[REMOTE] Autoplay failed:", err);
+            // Try playing on user interaction
+            const playOnInteraction = () => {
+              videoElement.play()
+                .then(() => {
+                  console.log("[REMOTE] Playback started after user interaction");
+                  videoElement.muted = false;
+                })
+                .catch(console.error);
+              document.removeEventListener('click', playOnInteraction);
+            };
+            document.addEventListener('click', playOnInteraction);
+          });
+      };
+
+      const handleLoadedMetadata = () => {
+        console.log("[REMOTE] Video metadata loaded:", {
+          videoWidth: videoElement.videoWidth,
+          videoHeight: videoElement.videoHeight,
+          muted: videoElement.muted
+        });
       };
 
       videoElement.addEventListener('canplay', handleCanPlay);
+      videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+
+      // Set srcObject and force a play attempt
       videoElement.srcObject = remoteStream;
+      videoElement.play().catch(err => {
+        console.log("[REMOTE] Initial play failed, waiting for user interaction:", err);
+      });
 
       return () => {
         videoElement.removeEventListener('canplay', handleCanPlay);
+        videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
         if (videoElement.srcObject) {
           videoElement.srcObject = null;
         }
