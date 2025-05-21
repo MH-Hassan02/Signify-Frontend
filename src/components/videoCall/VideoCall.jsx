@@ -41,6 +41,7 @@ const VideoCall = ({
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
+  const [isRemoteVideoEnabled, setIsRemoteVideoEnabled] = useState(true);
 
   const { setIncomingCall, isCalling, setIsCalling } = useVideoCall();
 
@@ -172,15 +173,21 @@ const VideoCall = ({
           }
         }
 
-        // Monitor track state changes
-        event.track.onmute = () => {
-          console.log(`[REMOTE] Track muted:`, event.track.kind);
-        };
-        
-        event.track.onunmute = () => {
-          console.log(`[REMOTE] Track unmuted:`, event.track.kind);
-          event.track.enabled = true;
-        };
+        if (event.track.kind === 'video') {
+          setIsRemoteVideoEnabled(event.track.enabled);
+          
+          event.track.onmute = () => {
+            setIsRemoteVideoEnabled(false);
+          };
+          
+          event.track.onunmute = () => {
+            setIsRemoteVideoEnabled(true);
+          };
+
+          event.track.onended = () => {
+            setIsRemoteVideoEnabled(false);
+          };
+        }
       }
     };
 
@@ -731,7 +738,7 @@ const VideoCall = ({
               autoPlay
               playsInline
               muted
-              style={{ transform: 'scaleX(-1)', backgroundColor: '#000000' }}
+              style={{ transform: 'scaleX(-1)' }}
             />
           )}
           <p className="contactNameVideo">
@@ -740,7 +747,7 @@ const VideoCall = ({
         </div>
 
         <div className="videoSlot">
-          {!remoteStream ? (
+          {(!remoteStream || !isRemoteVideoEnabled) ? (
             <img
               src={contactProfilePic}
               alt={contactUsername}
@@ -752,7 +759,6 @@ const VideoCall = ({
               ref={remoteVideoRef}
               autoPlay
               playsInline
-              style={{ backgroundColor: '#000000' }}
             />
           )}
           <p className="contactNameVideo">{contactUsername}</p>
