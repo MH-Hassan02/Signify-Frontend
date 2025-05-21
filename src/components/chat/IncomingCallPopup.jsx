@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useVideoCall } from "../../contexts/VideoCallContext";
 import { useNavigate } from "react-router-dom";
 import socket from "../../socket";
@@ -10,11 +10,13 @@ const IncomingCallPopup = () => {
   const navigate = useNavigate();
   const ringtoneRef = useRef(null);
   const autoRejectTimeoutRef = useRef(null);
+  const [isRingtonePlaying, setIsRingtonePlaying] = useState(false);
 
   useEffect(() => {
     if (incomingCall) {
       const ringtone = ringtoneRef.current;
-      if (ringtone) {
+      if (ringtone && !isRingtonePlaying) {
+        setIsRingtonePlaying(true);
         ringtone.play().catch((err) =>
           console.warn("Failed to play ringtone:", err)
         );
@@ -32,6 +34,7 @@ const IncomingCallPopup = () => {
         if (ringtone) {
           ringtone.pause();
           ringtone.currentTime = 0;
+          setIsRingtonePlaying(false);
         }
         setIncomingCall(null);
         toast.info("Caller ended the call");
@@ -41,9 +44,10 @@ const IncomingCallPopup = () => {
 
       return () => {
         clearTimeout(autoRejectTimeoutRef.current);
-        if (ringtoneRef.current) {
-          ringtoneRef.current.pause();
-          ringtoneRef.current.currentTime = 0;
+        if (ringtone) {
+          ringtone.pause();
+          ringtone.currentTime = 0;
+          setIsRingtonePlaying(false);
         }
         socket.off("call-ended", handleCallEnded);
       };
