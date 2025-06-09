@@ -95,6 +95,10 @@
 @media only screen and (max-width:768px){
   .videoCallWrapper{
     padding: 0;
+    height: 100svh;
+    max-height: 100svh;
+    min-height: 100svh;
+    overflow: hidden;
   }
   .videoContainer {
     flex-direction: column;

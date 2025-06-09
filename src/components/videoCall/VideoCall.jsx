@@ -47,18 +47,13 @@ const VideoCall = ({
 
   const servers = {
     iceServers: [
-      {
-        urls: [
-          "stun:stun.l.google.com:19302",
-          "stun:stun1.l.google.com:19302"
-        ]
-      },
+      { urls: "stun:stun.l.google.com:19302" },
       {
         urls: [
           "turn:a.relay.metered.ca:80",
           "turn:a.relay.metered.ca:80?transport=tcp",
           "turn:a.relay.metered.ca:443",
-          "turn:a.relay.metered.ca:443?transport=tcp",
+          "turn:a.relay.metered.ca:443?transport=tcp"
         ],
         username: "e2c0e5ddc6c9ab8bc726db55",
         credential: "2D+rvHqfUe+9Yf/N"
