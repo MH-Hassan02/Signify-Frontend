@@ -160,6 +160,7 @@ const VideoCall = ({
 
     // Add all tracks to the peer connection
     stream.getTracks().forEach(track => {
+      track.enabled = true; // Always enable tracks
       console.log(`[PEER] Adding ${track.kind} track to connection:`, {
         id: track.id,
         enabled: track.enabled
@@ -213,6 +214,8 @@ const VideoCall = ({
       }
       // Track specific handlers
       if (event.track.kind === 'video') {
+        event.track.enabled = true;
+        console.log(`[REMOTE] Video track state: enabled=${event.track.enabled}, muted=${event.track.muted}`);
         event.track.onended = () => {
           console.log("[REMOTE] Video track ended");
           setIsRemoteVideoEnabled(false);
@@ -222,12 +225,14 @@ const VideoCall = ({
           setIsRemoteVideoEnabled(false);
         };
         event.track.onunmute = () => {
-          console.log("[REMOTE] Video track unmuted");
-          setIsRemoteVideoEnabled(true);
           event.track.enabled = true;
+          console.log("[REMOTE] Video track unmuted (forced enabled)");
+          setIsRemoteVideoEnabled(true);
         };
       }
       if (event.track.kind === 'audio') {
+        event.track.enabled = true;
+        console.log(`[REMOTE] Audio track state: enabled=${event.track.enabled}, muted=${event.track.muted}`);
         event.track.onended = () => {
           console.log("[REMOTE] Audio track ended");
         };
@@ -235,11 +240,12 @@ const VideoCall = ({
           console.log("[REMOTE] Audio track muted");
         };
         event.track.onunmute = () => {
-          console.log("[REMOTE] Audio track unmuted");
           event.track.enabled = true;
+          console.log("[REMOTE] Audio track unmuted (forced enabled)");
         };
       }
       event.track.enabled = true;
+      console.log(`[REMOTE] Track final state: enabled=${event.track.enabled}, muted=${event.track.muted}`);
     };
 
     // Monitor connection state changes
@@ -319,10 +325,8 @@ const VideoCall = ({
   const getLocalMedia = async () => {
     try {
       console.log("[MEDIA] Requesting local media stream");
-      
       const devices = await navigator.mediaDevices.enumerateDevices();
       console.log("[MEDIA] Available devices:", devices);
-
       const constraints = {
         audio: {
           echoCancellation: true,
@@ -335,31 +339,24 @@ const VideoCall = ({
           frameRate: { ideal: 30 }
         }
       };
-
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
       // Log detailed track information
       stream.getTracks().forEach(track => {
+        track.enabled = true; // Always enable tracks
         console.log(`[MEDIA] Got ${track.kind} track:`, {
           id: track.id,
           enabled: track.enabled,
           readyState: track.readyState,
           settings: track.getSettings()
         });
-        
-        // Ensure tracks are enabled
-        track.enabled = true;
       });
-
       localStreamRef.current = stream;
       setLocalStream(stream);
-      
       // Setup local video display
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
         await setupVideoTrack(videoTrack, localVideoRef.current);
       }
-
       return stream;
     } catch (err) {
       console.error("[MEDIA] Error accessing media devices:", err);
