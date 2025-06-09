@@ -10,6 +10,7 @@ import ChatPlaceholder from "./ChatPlaceholder";
 import socket from "../../socket";
 import { useVideoCall } from "../../contexts/VideoCallContext";
 import IncomingCallPopup from "./IncomingCallPopup";
+import ChatMessagesSkeleton from "./ChatMessagesSkeleton";
 import "./Chat.css";
 
 const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
@@ -19,6 +20,7 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
   const [someoneTyping, setSomeoneTyping] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [loading, setLoading] = useState(false);
   
   const chatMessagesRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -33,6 +35,7 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
   useEffect(() => {
     const fetchMessages = async () => {
       if (selectedContact) {
+        setLoading(true);
         try {
           const res = await axios.get(
             `${import.meta.env.VITE_BASE_URL}/messages/${currentUser._id}/${
@@ -50,6 +53,8 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
           );
         } catch (error) {
           toast.info("No Messages Yet");
+        } finally {
+          setLoading(false);
         }
       }
     };
@@ -213,6 +218,17 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
     };
   }, [selectedContact]);
 
+  function formatMessageTime(date) {
+    const m = moment(date);
+    if (m.isSame(moment(), 'day')) {
+      return `Today, ${m.format('hh:mm A')}`;
+    } else if (m.isSame(moment().subtract(1, 'day'), 'day')) {
+      return `Yesterday, ${m.format('hh:mm A')}`;
+    } else {
+      return m.format('D MMM, YYYY, hh:mm A');
+    }
+  }
+
   return (
     <div className="chatMain">
       {selectedContact ? (
@@ -243,29 +259,35 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
           </div>
 
           <div className="chatMessages" ref={chatMessagesRef}>
-            {messages.map((msg, index) => (
-              <div
-                key={index}
-                className={`chatBubble ${
-                  msg.sender._id === currentUser._id ? "me" : "them"
-                }`}
-              >
-                <div>{msg.text}</div>
-                <div className="messageTime">
-                  {moment(msg.createdAt).format("HH:mm")}
-                </div>
-              </div>
-            ))}
+            {loading ? (
+              <ChatMessagesSkeleton />
+            ) : (
+              <>
+                {messages.map((msg, index) => (
+                  <div
+                    key={index}
+                    className={`chatBubble ${
+                      msg.sender._id === currentUser._id ? "me" : "them"
+                    }`}
+                  >
+                    <div>{msg.text}</div>
+                    <div className="messageTime">
+                      {formatMessageTime(msg.createdAt)}
+                    </div>
+                  </div>
+                ))}
 
-            {someoneTyping && (
-              <div className="chatBubble them typing">
-                <span className="dot"></span>
-                <span className="dot"></span>
-                <span className="dot"></span>
-              </div>
+                {someoneTyping && (
+                  <div className="chatBubble them typing">
+                    <span className="dot"></span>
+                    <span className="dot"></span>
+                    <span className="dot"></span>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </>
             )}
-
-            <div ref={messagesEndRef} />
           </div>
 
           {showScrollToBottom && (

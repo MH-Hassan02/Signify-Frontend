@@ -1,0 +1,44 @@
+.chatMessagesSkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.skeletonBubble {
+  height: 32px;
+  border-radius: 16px;
+  background: #23272f;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 4px;
+  opacity: 0.5;
+}
+
+.skeletonBubble.left {
+  align-self: flex-start;
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.skeletonBubble.right {
+  align-self: flex-end;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.skeletonShimmer {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #23272f 0%, #2c2f36 40%, #23272f 80%);
+  animation: shimmer 1.2s infinite linear;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+} 

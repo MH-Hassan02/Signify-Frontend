@@ -2,6 +2,17 @@ import React from "react";
 import moment from "moment";
 import "./ContactCard.css";
 
+function formatContactTime(date) {
+  const m = moment(date);
+  if (m.isSame(moment(), 'day')) {
+    return m.format('hh:mm A');
+  } else if (m.isSame(moment().subtract(1, 'day'), 'day')) {
+    return 'Yesterday';
+  } else {
+    return m.format('D MMM, YYYY');
+  }
+}
+
 const ContactCard = ({
   contact,
   isSelected,
@@ -12,7 +23,7 @@ const ContactCard = ({
 }) => {
   // console.log(lastMessageTime, "lastMessageTime")
   const formattedTime = lastMessageTime
-    ? moment(lastMessageTime).format("hh:mm A")
+    ? formatContactTime(lastMessageTime)
     : "";
 
   // console.log(formattedTime, "formattedTime")

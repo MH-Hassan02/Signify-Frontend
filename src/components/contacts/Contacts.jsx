@@ -115,6 +115,11 @@ const Contacts = ({ onSelectContact }) => {
     }
   };
 
+  // Filter contacts by searchTerm (case-insensitive, partial match on username)
+  const filteredContacts = contacts.filter(contact =>
+    contact.username.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="contactsMain">
       <div className="contactHead">
@@ -141,7 +146,7 @@ const Contacts = ({ onSelectContact }) => {
 
       <div className="contactsList">
         <div className="contactCardContainer">
-          {contacts.map((contact) => (
+          {filteredContacts.map((contact) => (
             <ContactCard
               key={contact._id}
               contact={contact}

@@ -67,7 +67,7 @@
 .unreadBadge {
   background-color: var(--secondary-color);
   color: var(--text-color);
-  padding: 4px 7px;
+  padding: 4px 10px;
   border-radius: 50%;
   font-size: 11px;
   min-width: 18px;

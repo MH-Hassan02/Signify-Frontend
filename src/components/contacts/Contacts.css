@@ -84,7 +84,7 @@
   background: #141414;
   padding: 20px;
   border-radius: 8px;
-  width: 350px;
+  min-width: 350px;
   color: var(--text-color);
   display: flex;
   flex-direction: column;

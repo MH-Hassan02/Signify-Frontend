@@ -169,78 +169,77 @@ const VideoCall = ({
 
     // Handle incoming tracks
     pc.ontrack = async (event) => {
+      let remoteStream = null;
       if (event.streams && event.streams[0]) {
-        const stream = event.streams[0];
-        console.log("[REMOTE] Track received:", {
+        remoteStream = event.streams[0];
+        console.log("[REMOTE] Track received (with stream):", {
+          kind: event.track.kind,
+          enabled: event.track.enabled,
+          readyState: event.track.readyState,
+          muted: event.track.muted,
+          streamTracks: remoteStream.getTracks().map(t => t.kind)
+        });
+      } else {
+        // Fallback: build a MediaStream from the track
+        remoteStream = remoteStreamRef.current || new window.MediaStream();
+        remoteStream.addTrack(event.track);
+        console.log("[REMOTE] Track received (no stream, fallback):", {
           kind: event.track.kind,
           enabled: event.track.enabled,
           readyState: event.track.readyState,
           muted: event.track.muted
         });
-        
-        // Store the remote stream
-        remoteStreamRef.current = stream;
-        setRemoteStream(stream);
-        
-        if (remoteVideoRef.current) {
-          // Use the full stream for the video element to get both audio and video
-          remoteVideoRef.current.srcObject = stream;
-          remoteVideoRef.current.playsInline = true;
-          remoteVideoRef.current.autoplay = true;
-          
-          try {
-            await remoteVideoRef.current.play();
-            console.log("[REMOTE] Media playback started");
-          } catch (err) {
-            console.error("[REMOTE] Failed to start media playback:", err);
-            // Handle autoplay restrictions
-            if (err.name === 'NotAllowedError') {
-              const playPromise = () => {
-                remoteVideoRef.current.play().catch(console.error);
-                document.removeEventListener('click', playPromise);
-              };
-              document.addEventListener('click', playPromise);
-            }
+      }
+      // Store and set remote stream
+      remoteStreamRef.current = remoteStream;
+      setRemoteStream(remoteStream);
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStream;
+        remoteVideoRef.current.playsInline = true;
+        remoteVideoRef.current.autoplay = true;
+        try {
+          await remoteVideoRef.current.play();
+          console.log("[REMOTE] Media playback started");
+        } catch (err) {
+          console.error("[REMOTE] Failed to start media playback:", err);
+          if (err.name === 'NotAllowedError') {
+            const playPromise = () => {
+              remoteVideoRef.current.play().catch(console.error);
+              document.removeEventListener('click', playPromise);
+            };
+            document.addEventListener('click', playPromise);
           }
         }
-
-        // Track specific handlers
-        if (event.track.kind === 'video') {
-          event.track.onended = () => {
-            console.log("[REMOTE] Video track ended");
-            setIsRemoteVideoEnabled(false);
-          };
-          
-          event.track.onmute = () => {
-            console.log("[REMOTE] Video track muted");
-            setIsRemoteVideoEnabled(false);
-          };
-          
-          event.track.onunmute = () => {
-            console.log("[REMOTE] Video track unmuted");
-            setIsRemoteVideoEnabled(true);
-            event.track.enabled = true;
-          };
-        }
-
-        if (event.track.kind === 'audio') {
-          event.track.onended = () => {
-            console.log("[REMOTE] Audio track ended");
-          };
-          
-          event.track.onmute = () => {
-            console.log("[REMOTE] Audio track muted");
-          };
-          
-          event.track.onunmute = () => {
-            console.log("[REMOTE] Audio track unmuted");
-            event.track.enabled = true;
-          };
-        }
-
-        // Ensure tracks are enabled
-        event.track.enabled = true;
       }
+      // Track specific handlers
+      if (event.track.kind === 'video') {
+        event.track.onended = () => {
+          console.log("[REMOTE] Video track ended");
+          setIsRemoteVideoEnabled(false);
+        };
+        event.track.onmute = () => {
+          console.log("[REMOTE] Video track muted");
+          setIsRemoteVideoEnabled(false);
+        };
+        event.track.onunmute = () => {
+          console.log("[REMOTE] Video track unmuted");
+          setIsRemoteVideoEnabled(true);
+          event.track.enabled = true;
+        };
+      }
+      if (event.track.kind === 'audio') {
+        event.track.onended = () => {
+          console.log("[REMOTE] Audio track ended");
+        };
+        event.track.onmute = () => {
+          console.log("[REMOTE] Audio track muted");
+        };
+        event.track.onunmute = () => {
+          console.log("[REMOTE] Audio track unmuted");
+          event.track.enabled = true;
+        };
+      }
+      event.track.enabled = true;
     };
 
     // Monitor connection state changes
