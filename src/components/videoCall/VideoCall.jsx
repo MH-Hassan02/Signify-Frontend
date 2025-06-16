@@ -141,19 +141,33 @@ const VideoCall = ({
     const pc = new RTCPeerConnection(servers);
     peerConnectionRef.current = pc;
 
-    // Add all tracks to the peer connection
+    // Add all tracks to the peer connection with proper configuration
     stream.getTracks().forEach(track => {
       track.enabled = true;
-      pc.addTrack(track, stream);
+      const sender = pc.addTrack(track, stream);
+      
+      // Monitor sender state
+      if (sender.track) {
+        sender.track.onended = () => {
+          console.log(`${sender.track.kind} track ended`);
+          if (sender.track.kind === 'video') {
+            setIsVideoOn(false);
+          } else if (sender.track.kind === 'audio') {
+            setIsMicOn(false);
+          }
+        };
+      }
     });
 
-    // Handle incoming tracks
+    // Handle incoming tracks with enhanced error handling
     pc.ontrack = async (event) => {
+      console.log("Received track:", event.track.kind);
+      
       let remoteStream = null;
       if (event.streams && event.streams[0]) {
         remoteStream = event.streams[0];
       } else {
-        remoteStream = remoteStreamRef.current || new window.MediaStream();
+        remoteStream = remoteStreamRef.current || new MediaStream();
         remoteStream.addTrack(event.track);
       }
       
@@ -164,9 +178,15 @@ const VideoCall = ({
         remoteVideoRef.current.srcObject = remoteStream;
         remoteVideoRef.current.playsInline = true;
         remoteVideoRef.current.autoplay = true;
+        
+        // Ensure the track is enabled
+        event.track.enabled = true;
+        
         try {
           await remoteVideoRef.current.play();
+          console.log("Remote video playing successfully");
         } catch (err) {
+          console.error("Error playing remote video:", err);
           if (err.name === 'NotAllowedError') {
             const playPromise = () => {
               remoteVideoRef.current.play().catch(console.error);
@@ -177,37 +197,46 @@ const VideoCall = ({
         }
       }
 
-      // Track specific handlers
-      if (event.track.kind === 'video') {
-        event.track.enabled = true;
-        event.track.onended = () => setIsRemoteVideoEnabled(false);
-        event.track.onmute = () => setIsRemoteVideoEnabled(false);
-        event.track.onunmute = () => {
+      // Enhanced track state monitoring
+      event.track.onended = () => {
+        console.log(`${event.track.kind} track ended`);
+        if (event.track.kind === 'video') {
+          setIsRemoteVideoEnabled(false);
+        }
+      };
+      
+      event.track.onmute = () => {
+        console.log(`${event.track.kind} track muted`);
+        if (event.track.kind === 'video') {
+          setIsRemoteVideoEnabled(false);
+        }
+      };
+      
+      event.track.onunmute = () => {
+        console.log(`${event.track.kind} track unmuted`);
+        if (event.track.kind === 'video') {
           event.track.enabled = true;
           setIsRemoteVideoEnabled(true);
-        };
-      }
-      
-      if (event.track.kind === 'audio') {
-        event.track.enabled = true;
-      }
-      
-      event.track.enabled = true;
+        }
+      };
     };
 
-    // Monitor connection state changes
+    // Enhanced connection state monitoring
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
+      console.log("Connection state changed:", state);
       connectionStateRef.current = state;
       
       if (state === 'connected') {
         setIsConnected(true);
+        // Ensure all tracks are enabled when connected
         pc.getSenders().forEach(sender => {
           if (sender.track) {
             sender.track.enabled = true;
           }
         });
       } else if (state === 'failed' || state === 'disconnected') {
+        console.log("Connection failed or disconnected, attempting recovery");
         pc.restartIce();
         if (state === 'failed') {
           renegotiateConnection(pc);
@@ -215,16 +244,19 @@ const VideoCall = ({
       }
     };
 
-    // Monitor ICE connection state
+    // Enhanced ICE connection monitoring
     pc.oniceconnectionstatechange = () => {
+      console.log("ICE connection state:", pc.iceConnectionState);
       if (pc.iceConnectionState === 'failed') {
+        console.log("ICE connection failed, restarting ICE");
         pc.restartIce();
       }
     };
 
-    // Handle ICE candidates
+    // Enhanced ICE candidate handling
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        console.log("Sending ICE candidate");
         socket.emit("ice-candidate", {
           to: contactId,
           candidate: event.candidate
@@ -272,16 +304,33 @@ const VideoCall = ({
       };
       
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      // Ensure all tracks are enabled and properly configured
       stream.getTracks().forEach(track => {
         track.enabled = true;
+        if (track.kind === 'video') {
+          track.applyConstraints({
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 }
+          }).catch(console.error);
+        }
       });
       
       localStreamRef.current = stream;
       setLocalStream(stream);
       
-      const videoTrack = stream.getVideoTracks()[0];
-      if (videoTrack) {
-        await setupVideoTrack(videoTrack, localVideoRef.current);
+      // Set up local video
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.muted = true;
+        localVideoRef.current.playsInline = true;
+        localVideoRef.current.autoplay = true;
+        try {
+          await localVideoRef.current.play();
+        } catch (err) {
+          console.error("Error playing local video:", err);
+        }
       }
       
       return stream;
