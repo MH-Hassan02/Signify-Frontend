@@ -68,12 +68,6 @@ const VideoCall = ({
   const setupVideoTrack = async (track, videoElement) => {
     if (!track || !videoElement) return;
     
-    console.log(`[VIDEO] Setting up ${track.kind} track:`, {
-      id: track.id,
-      enabled: track.enabled,
-      readyState: track.readyState
-    });
-
     try {
       // Get the existing stream or create a new one
       const existingStream = videoElement.srcObject instanceof MediaStream ? 
@@ -105,10 +99,8 @@ const VideoCall = ({
       // Force a play attempt
       try {
         await videoElement.play();
-        console.log(`[VIDEO] Successfully started playback for ${track.kind} track`);
       } catch (playError) {
         if (playError.name === 'NotAllowedError') {
-          console.log('[VIDEO] Autoplay prevented, waiting for user interaction');
           const playPromise = () => {
             videoElement.play().catch(console.error);
             document.removeEventListener('click', playPromise);
@@ -121,45 +113,37 @@ const VideoCall = ({
       
       // Monitor track state
       track.onended = () => {
-        console.log(`[VIDEO] Track ended: ${track.id}`);
         if (track.kind === 'video' && videoElement === remoteVideoRef.current) {
           setIsRemoteVideoEnabled(false);
         }
       };
       
       track.onmute = () => {
-        console.log(`[VIDEO] Track muted: ${track.id}`);
         if (track.kind === 'video' && videoElement === remoteVideoRef.current) {
           setIsRemoteVideoEnabled(false);
         }
       };
       
       track.onunmute = () => {
-        console.log(`[VIDEO] Track unmuted: ${track.id}`);
         if (track.kind === 'video' && videoElement === remoteVideoRef.current) {
           setIsRemoteVideoEnabled(true);
         }
       };
       
     } catch (err) {
-      console.error(`[VIDEO] Failed to setup ${track.kind} track:`, err);
+      console.error(`Failed to setup ${track.kind} track:`, err);
       toast.error(`Failed to setup ${track.kind}`);
     }
   };
 
   // Enhanced peer connection setup
   const setupPeerConnection = async (stream) => {
-    console.log("[PEER] Setting up new peer connection");
     const pc = new RTCPeerConnection(servers);
     peerConnectionRef.current = pc;
 
     // Add all tracks to the peer connection
     stream.getTracks().forEach(track => {
-      track.enabled = true; // Always enable tracks
-      console.log(`[PEER] Adding ${track.kind} track to connection:`, {
-        id: track.id,
-        enabled: track.enabled
-      });
+      track.enabled = true;
       pc.addTrack(track, stream);
     });
 
@@ -168,36 +152,21 @@ const VideoCall = ({
       let remoteStream = null;
       if (event.streams && event.streams[0]) {
         remoteStream = event.streams[0];
-        console.log("[REMOTE] Track received (with stream):", {
-          kind: event.track.kind,
-          enabled: event.track.enabled,
-          readyState: event.track.readyState,
-          muted: event.track.muted,
-          streamTracks: remoteStream.getTracks().map(t => t.kind)
-        });
       } else {
-        // Fallback: build a MediaStream from the track
         remoteStream = remoteStreamRef.current || new window.MediaStream();
         remoteStream.addTrack(event.track);
-        console.log("[REMOTE] Track received (no stream, fallback):", {
-          kind: event.track.kind,
-          enabled: event.track.enabled,
-          readyState: event.track.readyState,
-          muted: event.track.muted
-        });
       }
-      // Store and set remote stream
+      
       remoteStreamRef.current = remoteStream;
       setRemoteStream(remoteStream);
+      
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStream;
         remoteVideoRef.current.playsInline = true;
         remoteVideoRef.current.autoplay = true;
         try {
           await remoteVideoRef.current.play();
-          console.log("[REMOTE] Media playback started");
         } catch (err) {
-          console.error("[REMOTE] Failed to start media playback:", err);
           if (err.name === 'NotAllowedError') {
             const playPromise = () => {
               remoteVideoRef.current.play().catch(console.error);
@@ -207,61 +176,39 @@ const VideoCall = ({
           }
         }
       }
+
       // Track specific handlers
       if (event.track.kind === 'video') {
         event.track.enabled = true;
-        console.log(`[REMOTE] Video track state: enabled=${event.track.enabled}, muted=${event.track.muted}`);
-        event.track.onended = () => {
-          console.log("[REMOTE] Video track ended");
-          setIsRemoteVideoEnabled(false);
-        };
-        event.track.onmute = () => {
-          console.log("[REMOTE] Video track muted");
-          setIsRemoteVideoEnabled(false);
-        };
+        event.track.onended = () => setIsRemoteVideoEnabled(false);
+        event.track.onmute = () => setIsRemoteVideoEnabled(false);
         event.track.onunmute = () => {
           event.track.enabled = true;
-          console.log("[REMOTE] Video track unmuted (forced enabled)");
           setIsRemoteVideoEnabled(true);
         };
       }
+      
       if (event.track.kind === 'audio') {
         event.track.enabled = true;
-        console.log(`[REMOTE] Audio track state: enabled=${event.track.enabled}, muted=${event.track.muted}`);
-        event.track.onended = () => {
-          console.log("[REMOTE] Audio track ended");
-        };
-        event.track.onmute = () => {
-          console.log("[REMOTE] Audio track muted");
-        };
-        event.track.onunmute = () => {
-          event.track.enabled = true;
-          console.log("[REMOTE] Audio track unmuted (forced enabled)");
-        };
       }
+      
       event.track.enabled = true;
-      console.log(`[REMOTE] Track final state: enabled=${event.track.enabled}, muted=${event.track.muted}`);
     };
 
     // Monitor connection state changes
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
-      console.log("[PEER] Connection state changed:", state);
       connectionStateRef.current = state;
       
       if (state === 'connected') {
         setIsConnected(true);
-        // Re-enable all tracks
         pc.getSenders().forEach(sender => {
           if (sender.track) {
             sender.track.enabled = true;
           }
         });
       } else if (state === 'failed' || state === 'disconnected') {
-        console.log("[PEER] Attempting ICE restart");
         pc.restartIce();
-        
-        // Try to renegotiate
         if (state === 'failed') {
           renegotiateConnection(pc);
         }
@@ -270,9 +217,7 @@ const VideoCall = ({
 
     // Monitor ICE connection state
     pc.oniceconnectionstatechange = () => {
-      console.log("[ICE] Connection state:", pc.iceConnectionState);
       if (pc.iceConnectionState === 'failed') {
-        console.log("[ICE] Attempting restart");
         pc.restartIce();
       }
     };
@@ -280,17 +225,11 @@ const VideoCall = ({
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log("[ICE] New candidate:", event.candidate.type);
         socket.emit("ice-candidate", {
           to: contactId,
           candidate: event.candidate
         });
       }
-    };
-
-    // Log ICE gathering state
-    pc.onicegatheringstatechange = () => {
-      console.log("[ICE] Gathering state:", pc.iceGatheringState);
     };
 
     return pc;
@@ -312,16 +251,13 @@ const VideoCall = ({
         offer: pc.localDescription
       });
     } catch (err) {
-      console.error("[PEER] Renegotiation failed:", err);
+      console.error("Renegotiation failed:", err);
     }
   };
 
   // Enhanced local media setup
   const getLocalMedia = async () => {
     try {
-      console.log("[MEDIA] Requesting local media stream");
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      console.log("[MEDIA] Available devices:", devices);
       const constraints = {
         audio: {
           echoCancellation: true,
@@ -334,27 +270,23 @@ const VideoCall = ({
           frameRate: { ideal: 30 }
         }
       };
+      
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      // Log detailed track information
       stream.getTracks().forEach(track => {
-        track.enabled = true; // Always enable tracks
-        console.log(`[MEDIA] Got ${track.kind} track:`, {
-          id: track.id,
-          enabled: track.enabled,
-          readyState: track.readyState,
-          settings: track.getSettings()
-        });
+        track.enabled = true;
       });
+      
       localStreamRef.current = stream;
       setLocalStream(stream);
-      // Setup local video display
+      
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
         await setupVideoTrack(videoTrack, localVideoRef.current);
       }
+      
       return stream;
     } catch (err) {
-      console.error("[MEDIA] Error accessing media devices:", err);
+      console.error("Error accessing media devices:", err);
       toast.error("Failed to access camera or microphone");
       throw err;
     }
@@ -362,35 +294,22 @@ const VideoCall = ({
 
   // Modified video toggle
   const toggleVideo = async () => {
-    if (videoToggleLock.current) {
-      console.log("[VIDEO] Toggle in progress, please wait");
-      return;
-    }
+    if (videoToggleLock.current) return;
 
     try {
       videoToggleLock.current = true;
-      console.log("[VIDEO] Toggling video");
-
       const pc = peerConnectionRef.current;
-      if (!pc) {
-        console.error("[VIDEO] No peer connection available");
-        return;
-      }
+      if (!pc) return;
 
-      // Get video sender
       const videoSender = pc.getSenders().find(sender => 
         sender.track && sender.track.kind === 'video'
       );
 
-      if (!videoSender) {
-        console.error("[VIDEO] No video sender found");
-        return;
-      }
+      if (!videoSender) return;
 
       const newState = !isVideoOn;
       setIsVideoOn(newState);
 
-      // Get current video track
       const currentTrack = videoSender.track;
       if (currentTrack) {
         currentTrack.enabled = newState;
@@ -398,21 +317,17 @@ const VideoCall = ({
 
       if (!newState) {
         // If turning video off, we don't need to replace the track
-        console.log("[VIDEO] Video disabled");
       } else {
         try {
-          // If turning video on, get a fresh video track
           const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
           const newVideoTrack = newStream.getVideoTracks()[0];
           
           await videoSender.replaceTrack(newVideoTrack);
           
-          // Update local video display
           if (localVideoRef.current) {
             await setupVideoTrack(newVideoTrack, localVideoRef.current);
           }
 
-          // Store the new track in localStream
           if (localStreamRef.current) {
             const oldTrack = localStreamRef.current.getVideoTracks()[0];
             if (oldTrack) {
@@ -421,16 +336,14 @@ const VideoCall = ({
             }
             localStreamRef.current.addTrack(newVideoTrack);
           }
-
-          console.log("[VIDEO] Video enabled with new track");
         } catch (err) {
-          console.error("[VIDEO] Failed to get new video track:", err);
+          console.error("Failed to get new video track:", err);
           setIsVideoOn(false);
           toast.error("Failed to enable video");
         }
       }
     } catch (err) {
-      console.error("[VIDEO] Toggle failed:", err);
+      console.error("Toggle failed:", err);
       toast.error("Failed to toggle video");
     } finally {
       videoToggleLock.current = false;
@@ -438,15 +351,12 @@ const VideoCall = ({
   };
 
   const toggleMic = () => {
-    console.log("[TOGGLE] Toggling microphone");
     if (localStreamRef.current) {
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
         setIsMicOn(audioTrack.enabled);
-        console.log(`[TOGGLE] Microphone ${audioTrack.enabled ? 'enabled' : 'disabled'}`);
 
-        // Update the track in peer connection
         if (peerConnectionRef.current) {
           const senders = peerConnectionRef.current.getSenders();
           const audioSender = senders.find(sender => sender.track?.kind === 'audio');
@@ -464,12 +374,6 @@ const VideoCall = ({
       if (hasInitiatedCall.current) return;
       hasInitiatedCall.current = true;
 
-      console.log("[INIT] Call initialization", {
-        isIncomingCall,
-        hasCallData: !!callData,
-        isCalling
-      });
-
       try {
         const stream = await getLocalMedia();
         
@@ -479,7 +383,7 @@ const VideoCall = ({
           await startCall(stream);
         }
       } catch (err) {
-        console.error("[INIT] Call initialization failed:", err);
+        console.error("Call initialization failed:", err);
         endCall();
       }
     };
@@ -490,10 +394,7 @@ const VideoCall = ({
   // Modified handleIncomingCall
   const handleIncomingCall = async (stream) => {
     try {
-      console.log("[RECEIVER] Starting incoming call flow");
       const pc = await setupPeerConnection(stream);
-      
-      console.log("[RECEIVER] Setting remote description:", callData.offer);
       await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
       
       // Process any queued ICE candidates
@@ -501,35 +402,29 @@ const VideoCall = ({
         const candidate = iceCandidatesQueue.current.shift();
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          console.log("[ICE] Successfully added queued candidate");
         } catch (err) {
-          console.error("[ICE] Failed to add candidate:", err);
+          console.error("Failed to add candidate:", err);
         }
       }
       
-      console.log("[RECEIVER] Creating answer");
       const answer = await pc.createAnswer();
-      
-      console.log("[RECEIVER] Setting local description");
       await pc.setLocalDescription(answer);
       
       // Ensure all local tracks are properly added and enabled
       stream.getTracks().forEach(track => {
         const sender = pc.getSenders().find(s => s.track && s.track.kind === track.kind);
         if (!sender) {
-          console.log(`[RECEIVER] Adding ${track.kind} track to connection`);
           pc.addTrack(track, stream);
         }
         track.enabled = true;
       });
       
-      console.log("[RECEIVER] Sending answer to caller");
       socket.emit("answer-call", {
         to: callData.from._id,
         answer: pc.localDescription
       });
     } catch (err) {
-      console.error("[RECEIVER] Error in incoming call flow:", err);
+      console.error("Error in incoming call flow:", err);
       toast.error("Failed to setup incoming call");
       endCall();
     }
@@ -539,46 +434,27 @@ const VideoCall = ({
   const startCall = async (stream) => {
     try {
       setIsCalling(true);
-      console.log("[CALLER] Starting call with stream:", {
-        audioTracks: stream.getAudioTracks().length,
-        videoTracks: stream.getVideoTracks().length
-      });
       
       const pc = await setupPeerConnection(stream);
       
       // Ensure all tracks are enabled
       stream.getTracks().forEach(track => {
         track.enabled = true;
-        console.log(`[CALLER] Track ${track.kind} enabled:`, track.enabled);
       });
       
       // Wait for ICE gathering to begin
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      console.log("[CALLER] Creating offer");
       const offer = await pc.createOffer();
-      
-      console.log("[CALLER] Setting local description");
       await pc.setLocalDescription(offer);
       
-      // Verify tracks in peer connection
-      pc.getSenders().forEach(sender => {
-        if (sender.track) {
-          console.log(`[CALLER] Sender track ${sender.track.kind}:`, {
-            enabled: sender.track.enabled,
-            readyState: sender.track.readyState
-          });
-        }
-      });
-      
-      console.log("[CALLER] Sending offer to receiver");
       socket.emit("call-user", {
         to: contactId,
         offer: pc.localDescription,
         from: currentUser,
       });
     } catch (err) {
-      console.error("[CALLER] Error starting call:", err);
+      console.error("Error starting call:", err);
       toast.error("Failed to start call");
       setIsCalling(false);
       endCall();
@@ -587,21 +463,17 @@ const VideoCall = ({
 
   // Clean up call resources
   const endCall = () => {
-    console.log("[END] Ending call");
-    
     socket.emit("end-call", { to: contactId });
 
-    // Clean up peer connection
     if (peerConnectionRef.current) {
       try {
         peerConnectionRef.current.close();
       } catch (err) {
-        console.error("[END] Error closing peer connection:", err);
+        console.error("Error closing peer connection:", err);
       }
       peerConnectionRef.current = null;
     }
 
-    // Clean up local stream
     if (localStreamRef.current) {
       try {
         localStreamRef.current.getTracks().forEach((track) => {
@@ -609,12 +481,11 @@ const VideoCall = ({
           track.enabled = false;
         });
       } catch (err) {
-        console.error("[END] Error stopping local tracks:", err);
+        console.error("Error stopping local tracks:", err);
       }
       localStreamRef.current = null;
     }
 
-    // Clean up remote stream
     if (remoteStreamRef.current) {
       try {
         remoteStreamRef.current.getTracks().forEach((track) => {
@@ -622,12 +493,11 @@ const VideoCall = ({
           track.enabled = false;
         });
       } catch (err) {
-        console.error("[END] Error stopping remote tracks:", err);
+        console.error("Error stopping remote tracks:", err);
       }
       remoteStreamRef.current = null;
     }
 
-    // Clean up video elements
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
     }
@@ -635,7 +505,6 @@ const VideoCall = ({
       remoteVideoRef.current.srcObject = null;
     }
 
-    // Reset state
     setLocalStream(null);
     setRemoteStream(null);
     setIsCalling(false);
@@ -643,7 +512,6 @@ const VideoCall = ({
     setIsConnected(false);
     setIsVideoReady(false);
     
-    // Navigate away
     onClose?.();
     navigate("/calls", { replace: true });
   };
@@ -651,16 +519,14 @@ const VideoCall = ({
   // Socket event handlers
   useEffect(() => {
     socket.on("call-accepted", async ({ answer }) => {
-      console.log("[CALLER] Call accepted, setting up remote connection");
       try {
         if (peerConnectionRef.current && answer) {
           await peerConnectionRef.current.setRemoteDescription(
             new RTCSessionDescription(answer)
           );
-          console.log("[CALLER] Remote description set successfully");
         }
       } catch (err) {
-        console.error("[CALLER] Error setting remote description:", err);
+        console.error("Error setting remote description:", err);
       }
     });
 
@@ -676,14 +542,12 @@ const VideoCall = ({
             await peerConnectionRef.current.addIceCandidate(
               new RTCIceCandidate(candidate)
             );
-            console.log("[ICE] Candidate added successfully");
           } else {
-            console.log("[ICE] Queueing candidate");
             iceCandidatesQueue.current.push(candidate);
           }
         }
       } catch (err) {
-        console.error("[ICE] Error handling candidate:", err);
+        console.error("Error handling candidate:", err);
       }
     });
 
@@ -700,7 +564,7 @@ const VideoCall = ({
           answer: answer
         });
       } catch (err) {
-        console.error("[UPDATE] Error handling call update:", err);
+        console.error("Error handling call update:", err);
       }
     });
 
@@ -708,9 +572,8 @@ const VideoCall = ({
       if (!peerConnectionRef.current) return;
       try {
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
-        console.log("[UPDATE] Successfully updated remote description");
       } catch (err) {
-        console.error("[UPDATE] Error setting remote description:", err);
+        console.error("Error setting remote description:", err);
       }
     });
 
@@ -730,9 +593,7 @@ const VideoCall = ({
     if (!pc) return;
 
     const handleConnectionStateChange = () => {
-      console.log("[CONN] Connection state:", pc.connectionState);
       if (pc.connectionState === 'failed') {
-        // Attempt recovery
         try {
           pc.restartIce();
           const senders = pc.getSenders();
@@ -745,7 +606,7 @@ const VideoCall = ({
             }
           });
         } catch (err) {
-          console.error("[CONN] Recovery failed:", err);
+          console.error("Recovery failed:", err);
         }
       }
     };
