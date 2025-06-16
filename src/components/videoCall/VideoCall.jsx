@@ -188,14 +188,48 @@ const VideoCall = ({
         
         // Force play video properly
         remoteVideoRef.current.onloadedmetadata = () => {
+          console.log("Remote video metadata loaded");
           remoteVideoRef.current?.play()
+            .then(() => console.log("Remote video playing successfully"))
             .catch(err => console.error("Error playing remote video on stream:", err));
         };
 
         if (remoteVideoRef.current.readyState >= 2) {
+          console.log("Remote video ready state >= 2, forcing play");
           remoteVideoRef.current.play()
+            .then(() => console.log("Remote video playing successfully after force"))
             .catch(err => console.error("Error forcing remote video play:", err));
         }
+
+        // Monitor track state
+        event.track.onended = () => {
+          console.log(`${event.track.kind} track ended`);
+          if (event.track.kind === 'video') {
+            setIsRemoteVideoEnabled(false);
+          } else if (event.track.kind === 'audio') {
+            setIsRemoteMicEnabled(false);
+          }
+        };
+        
+        event.track.onmute = () => {
+          console.log(`${event.track.kind} track muted`);
+          if (event.track.kind === 'video') {
+            setIsRemoteVideoEnabled(false);
+          } else if (event.track.kind === 'audio') {
+            setIsRemoteMicEnabled(false);
+          }
+        };
+        
+        event.track.onunmute = () => {
+          console.log(`${event.track.kind} track unmuted`);
+          if (event.track.kind === 'video') {
+            event.track.enabled = true;
+            setIsRemoteVideoEnabled(true);
+          } else if (event.track.kind === 'audio') {
+            event.track.enabled = true;
+            setIsRemoteMicEnabled(true);
+          }
+        };
       }
     };
 
@@ -211,6 +245,12 @@ const VideoCall = ({
         pc.getSenders().forEach(sender => {
           if (sender.track) {
             sender.track.enabled = true;
+          }
+        });
+        // Also ensure all remote tracks are enabled
+        pc.getReceivers().forEach(receiver => {
+          if (receiver.track) {
+            receiver.track.enabled = true;
           }
         });
       } else if (state === 'failed' || state === 'disconnected') {
@@ -319,12 +359,16 @@ const VideoCall = ({
         localVideoRef.current.autoplay = true;
 
         localVideoRef.current.onloadedmetadata = () => {
+          console.log("Local video metadata loaded");
           localVideoRef.current?.play()
+            .then(() => console.log("Local video playing successfully"))
             .catch(err => console.error("Error playing local video:", err));
         };
 
         if (localVideoRef.current.readyState >= 2) {
+          console.log("Local video ready state >= 2, forcing play");
           localVideoRef.current.play()
+            .then(() => console.log("Local video playing successfully after force"))
             .catch(err => console.error("Error forcing local video play:", err));
         }
       }
