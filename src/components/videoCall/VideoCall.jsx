@@ -139,25 +139,25 @@ const VideoCall = ({
 
   // Enhanced peer connection setup
   const setupPeerConnection = async (stream) => {
-    const pc = new RTCPeerConnection(servers);
+    console.log("Setting up peer connection");
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        {
+          urls: "turn:openrelay.metered.ca:80",
+          username: "openrelayproject",
+          credential: "openrelayproject",
+        }
+      ]
+    });
     peerConnectionRef.current = pc;
 
     // Add all tracks to the peer connection with proper configuration
     stream.getTracks().forEach(track => {
+      console.log(`Adding ${track.kind} track to peer connection`);
       track.enabled = true;
       const sender = pc.addTrack(track, stream);
-      
-      // Monitor sender state
-      if (sender.track) {
-        sender.track.onended = () => {
-          console.log(`${sender.track.kind} track ended`);
-          if (sender.track.kind === 'video') {
-            setIsVideoOn(false);
-          } else if (sender.track.kind === 'audio') {
-            setIsMicOn(false);
-          }
-        };
-      }
+      console.log(`${track.kind} track added successfully`);
     });
 
     // Handle incoming tracks with enhanced error handling
@@ -166,8 +166,10 @@ const VideoCall = ({
       
       let remoteStream = null;
       if (event.streams && event.streams[0]) {
+        console.log("Using existing remote stream");
         remoteStream = event.streams[0];
       } else {
+        console.log("Creating new remote stream");
         remoteStream = remoteStreamRef.current || new MediaStream();
         remoteStream.addTrack(event.track);
       }
@@ -176,6 +178,7 @@ const VideoCall = ({
       setRemoteStream(remoteStream);
       
       if (remoteVideoRef.current) {
+        console.log("Setting up remote video element");
         remoteVideoRef.current.srcObject = remoteStream;
         remoteVideoRef.current.playsInline = true;
         remoteVideoRef.current.autoplay = true;
@@ -183,50 +186,17 @@ const VideoCall = ({
         // Ensure the track is enabled
         event.track.enabled = true;
         
-        try {
-          await remoteVideoRef.current.play();
-          console.log("Remote video playing successfully");
-        } catch (err) {
-          console.error("Error playing remote video:", err);
-          if (err.name === 'NotAllowedError') {
-            const playPromise = () => {
-              remoteVideoRef.current.play().catch(console.error);
-              document.removeEventListener('click', playPromise);
-            };
-            document.addEventListener('click', playPromise);
-          }
+        // Force play video properly
+        remoteVideoRef.current.onloadedmetadata = () => {
+          remoteVideoRef.current?.play()
+            .catch(err => console.error("Error playing remote video on stream:", err));
+        };
+
+        if (remoteVideoRef.current.readyState >= 2) {
+          remoteVideoRef.current.play()
+            .catch(err => console.error("Error forcing remote video play:", err));
         }
       }
-
-      // Enhanced track state monitoring
-      event.track.onended = () => {
-        console.log(`${event.track.kind} track ended`);
-        if (event.track.kind === 'video') {
-          setIsRemoteVideoEnabled(false);
-        } else if (event.track.kind === 'audio') {
-          setIsRemoteMicEnabled(false);
-        }
-      };
-      
-      event.track.onmute = () => {
-        console.log(`${event.track.kind} track muted`);
-        if (event.track.kind === 'video') {
-          setIsRemoteVideoEnabled(false);
-        } else if (event.track.kind === 'audio') {
-          setIsRemoteMicEnabled(false);
-        }
-      };
-      
-      event.track.onunmute = () => {
-        console.log(`${event.track.kind} track unmuted`);
-        if (event.track.kind === 'video') {
-          event.track.enabled = true;
-          setIsRemoteVideoEnabled(true);
-        } else if (event.track.kind === 'audio') {
-          event.track.enabled = true;
-          setIsRemoteMicEnabled(true);
-        }
-      };
     };
 
     // Enhanced connection state monitoring
@@ -298,31 +268,44 @@ const VideoCall = ({
   // Enhanced local media setup
   const getLocalMedia = async () => {
     try {
-      const constraints = {
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        },
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 }
+      // Step 1: Get video stream
+      const videoStream = await navigator.mediaDevices.getUserMedia({
+        video: true
+      });
+
+      console.log("Video stream tracks:", videoStream.getTracks());
+
+      // Step 2: Check if audioinput exists
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      console.log("Available media devices:");
+      devices.forEach(device => console.log(device.kind, device.label));
+
+      const hasMic = devices.some(device => device.kind === "audioinput");
+
+      // Step 3: Merge video + audio if mic exists
+      let stream;
+      if (hasMic) {
+        try {
+          const audioStream = await navigator.mediaDevices.getUserMedia({
+            audio: true
+          });
+          stream = new MediaStream([
+            ...videoStream.getTracks(),
+            ...audioStream.getTracks()
+          ]);
+        } catch (err) {
+          console.warn("Mic access denied or unavailable. Using video only.", err);
+          stream = videoStream;
         }
-      };
-      
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      // Ensure all tracks are enabled and properly configured
+      } else {
+        console.warn("No mic found. Using video only.");
+        stream = videoStream;
+      }
+
+      // Ensure all tracks are enabled
       stream.getTracks().forEach(track => {
+        console.log(`Ensuring ${track.kind} track is enabled`);
         track.enabled = true;
-        if (track.kind === 'video') {
-          track.applyConstraints({
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30 }
-          }).catch(console.error);
-        }
       });
       
       localStreamRef.current = stream;
@@ -334,10 +317,15 @@ const VideoCall = ({
         localVideoRef.current.muted = true;
         localVideoRef.current.playsInline = true;
         localVideoRef.current.autoplay = true;
-        try {
-          await localVideoRef.current.play();
-        } catch (err) {
-          console.error("Error playing local video:", err);
+
+        localVideoRef.current.onloadedmetadata = () => {
+          localVideoRef.current?.play()
+            .catch(err => console.error("Error playing local video:", err));
+        };
+
+        if (localVideoRef.current.readyState >= 2) {
+          localVideoRef.current.play()
+            .catch(err => console.error("Error forcing local video play:", err));
         }
       }
       
@@ -575,12 +563,19 @@ const VideoCall = ({
 
   // Socket event handlers
   useEffect(() => {
+    console.log("Setting up socket event listeners for video call");
+    
     socket.on("call-accepted", async ({ answer }) => {
+      console.log("Call accepted event received:", answer);
       try {
         if (peerConnectionRef.current && answer) {
+          console.log("Setting remote description from answer");
           await peerConnectionRef.current.setRemoteDescription(
             new RTCSessionDescription(answer)
           );
+          console.log("Remote description set successfully");
+        } else {
+          console.error("No peer connection or answer available");
         }
       } catch (err) {
         console.error("Error setting remote description:", err);
@@ -588,23 +583,30 @@ const VideoCall = ({
     });
 
     socket.on("call-ended", () => {
+      console.log("Call ended event received");
       toast.info("Call ended");
       endCall();
     });
 
     socket.on("ice-candidate", async ({ candidate }) => {
+      console.log("ICE candidate received:", candidate);
       try {
         if (peerConnectionRef.current) {
           if (peerConnectionRef.current.remoteDescription) {
+            console.log("Adding ICE candidate");
             await peerConnectionRef.current.addIceCandidate(
               new RTCIceCandidate(candidate)
             );
+            console.log("ICE candidate added successfully");
           } else {
+            console.log("Queueing ICE candidate - no remote description yet");
             iceCandidatesQueue.current.push(candidate);
           }
+        } else {
+          console.error("No peer connection available for ICE candidate");
         }
       } catch (err) {
-        console.error("Error handling candidate:", err);
+        console.error("Error handling ICE candidate:", err);
       }
     });
 
@@ -635,6 +637,7 @@ const VideoCall = ({
     });
 
     return () => {
+      console.log("Cleaning up socket event listeners");
       socket.off("call-accepted");
       socket.off("call-ended");
       socket.off("ice-candidate");
@@ -713,7 +716,11 @@ const VideoCall = ({
             />
           )}
           <p className="contactNameVideo">
-            {contactUsername} {!isRemoteMicEnabled && <FaMicrophoneSlash />}
+            {contactUsername}
+            <span className="statusIcons">
+              {!isRemoteMicEnabled && <FaMicrophoneSlash />}
+              {!isRemoteVideoEnabled && <FaVideoSlash />}
+            </span>
           </p>
         </div>
       </div>
