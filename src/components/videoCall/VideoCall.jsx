@@ -42,6 +42,7 @@ const VideoCall = ({
   const [isConnected, setIsConnected] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isRemoteVideoEnabled, setIsRemoteVideoEnabled] = useState(true);
+  const [isRemoteMicEnabled, setIsRemoteMicEnabled] = useState(true);
 
   const { setIncomingCall, isCalling, setIsCalling } = useVideoCall();
 
@@ -202,6 +203,8 @@ const VideoCall = ({
         console.log(`${event.track.kind} track ended`);
         if (event.track.kind === 'video') {
           setIsRemoteVideoEnabled(false);
+        } else if (event.track.kind === 'audio') {
+          setIsRemoteMicEnabled(false);
         }
       };
       
@@ -209,6 +212,8 @@ const VideoCall = ({
         console.log(`${event.track.kind} track muted`);
         if (event.track.kind === 'video') {
           setIsRemoteVideoEnabled(false);
+        } else if (event.track.kind === 'audio') {
+          setIsRemoteMicEnabled(false);
         }
       };
       
@@ -217,6 +222,9 @@ const VideoCall = ({
         if (event.track.kind === 'video') {
           event.track.enabled = true;
           setIsRemoteVideoEnabled(true);
+        } else if (event.track.kind === 'audio') {
+          event.track.enabled = true;
+          setIsRemoteMicEnabled(true);
         }
       };
     };
@@ -704,7 +712,9 @@ const VideoCall = ({
               playsInline
             />
           )}
-          <p className="contactNameVideo">{contactUsername}</p>
+          <p className="contactNameVideo">
+            {contactUsername} {!isRemoteMicEnabled && <FaMicrophoneSlash />}
+          </p>
         </div>
       </div>
 
