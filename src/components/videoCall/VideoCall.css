@@ -116,6 +116,7 @@
     min-height: 0;
   }
   .videoSlot {
+    width: 95%;
     min-height: 0;
   }
   .videoCallVideo,
