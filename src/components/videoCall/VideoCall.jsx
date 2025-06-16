@@ -152,88 +152,66 @@ const VideoCall = ({
     });
     peerConnectionRef.current = pc;
 
-    // Add all tracks to the peer connection with proper configuration
+    // Add all tracks to the peer connection
     stream.getTracks().forEach(track => {
       console.log(`Adding ${track.kind} track to peer connection`);
       track.enabled = true;
-      const sender = pc.addTrack(track, stream);
+      pc.addTrack(track, stream);
       console.log(`${track.kind} track added successfully`);
     });
 
-    // Handle incoming tracks with enhanced error handling
-    pc.ontrack = async (event) => {
+    // Handle incoming tracks
+    pc.ontrack = (event) => {
       console.log("Received track:", event.track.kind);
       
-      let remoteStream = null;
       if (event.streams && event.streams[0]) {
         console.log("Using existing remote stream");
-        remoteStream = event.streams[0];
-      } else {
-        console.log("Creating new remote stream");
-        remoteStream = remoteStreamRef.current || new MediaStream();
-        remoteStream.addTrack(event.track);
-      }
-      
-      remoteStreamRef.current = remoteStream;
-      setRemoteStream(remoteStream);
-      
-      if (remoteVideoRef.current) {
-        console.log("Setting up remote video element");
-        remoteVideoRef.current.srcObject = remoteStream;
-        remoteVideoRef.current.playsInline = true;
-        remoteVideoRef.current.autoplay = true;
+        const remoteStream = event.streams[0];
+        remoteStreamRef.current = remoteStream;
+        setRemoteStream(remoteStream);
         
-        // Ensure the track is enabled
-        event.track.enabled = true;
-        
-        // Force play video properly
-        remoteVideoRef.current.onloadedmetadata = () => {
-          console.log("Remote video metadata loaded");
-          remoteVideoRef.current?.play()
-            .then(() => console.log("Remote video playing successfully"))
-            .catch(err => console.error("Error playing remote video on stream:", err));
-        };
-
-        if (remoteVideoRef.current.readyState >= 2) {
-          console.log("Remote video ready state >= 2, forcing play");
-          remoteVideoRef.current.play()
-            .then(() => console.log("Remote video playing successfully after force"))
-            .catch(err => console.error("Error forcing remote video play:", err));
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = remoteStream;
+          remoteVideoRef.current.playsInline = true;
+          remoteVideoRef.current.autoplay = true;
+          
+          // Ensure track is enabled
+          event.track.enabled = true;
+          
+          // Monitor track state
+          event.track.onended = () => {
+            console.log(`${event.track.kind} track ended`);
+            if (event.track.kind === 'video') {
+              setIsRemoteVideoEnabled(false);
+            } else if (event.track.kind === 'audio') {
+              setIsRemoteMicEnabled(false);
+            }
+          };
+          
+          event.track.onmute = () => {
+            console.log(`${event.track.kind} track muted`);
+            if (event.track.kind === 'video') {
+              setIsRemoteVideoEnabled(false);
+            } else if (event.track.kind === 'audio') {
+              setIsRemoteMicEnabled(false);
+            }
+          };
+          
+          event.track.onunmute = () => {
+            console.log(`${event.track.kind} track unmuted`);
+            if (event.track.kind === 'video') {
+              event.track.enabled = true;
+              setIsRemoteVideoEnabled(true);
+            } else if (event.track.kind === 'audio') {
+              event.track.enabled = true;
+              setIsRemoteMicEnabled(true);
+            }
+          };
         }
-
-        // Monitor track state
-        event.track.onended = () => {
-          console.log(`${event.track.kind} track ended`);
-          if (event.track.kind === 'video') {
-            setIsRemoteVideoEnabled(false);
-          } else if (event.track.kind === 'audio') {
-            setIsRemoteMicEnabled(false);
-          }
-        };
-        
-        event.track.onmute = () => {
-          console.log(`${event.track.kind} track muted`);
-          if (event.track.kind === 'video') {
-            setIsRemoteVideoEnabled(false);
-          } else if (event.track.kind === 'audio') {
-            setIsRemoteMicEnabled(false);
-          }
-        };
-        
-        event.track.onunmute = () => {
-          console.log(`${event.track.kind} track unmuted`);
-          if (event.track.kind === 'video') {
-            event.track.enabled = true;
-            setIsRemoteVideoEnabled(true);
-          } else if (event.track.kind === 'audio') {
-            event.track.enabled = true;
-            setIsRemoteMicEnabled(true);
-          }
-        };
       }
     };
 
-    // Enhanced connection state monitoring
+    // Connection state monitoring
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
       console.log("Connection state changed:", state);
@@ -247,7 +225,6 @@ const VideoCall = ({
             sender.track.enabled = true;
           }
         });
-        // Also ensure all remote tracks are enabled
         pc.getReceivers().forEach(receiver => {
           if (receiver.track) {
             receiver.track.enabled = true;
@@ -256,13 +233,10 @@ const VideoCall = ({
       } else if (state === 'failed' || state === 'disconnected') {
         console.log("Connection failed or disconnected, attempting recovery");
         pc.restartIce();
-        if (state === 'failed') {
-          renegotiateConnection(pc);
-        }
       }
     };
 
-    // Enhanced ICE connection monitoring
+    // ICE connection monitoring
     pc.oniceconnectionstatechange = () => {
       console.log("ICE connection state:", pc.iceConnectionState);
       if (pc.iceConnectionState === 'failed') {
@@ -271,7 +245,7 @@ const VideoCall = ({
       }
     };
 
-    // Enhanced ICE candidate handling
+    // ICE candidate handling
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         console.log("Sending ICE candidate");
