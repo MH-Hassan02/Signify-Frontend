@@ -216,7 +216,11 @@ const VideoCall = ({
     // Connection state monitoring
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
-      console.log("Connection state changed:", state);
+      console.log(
+        "[PeerConnection] Connection state changed:",
+        pc.connectionState
+      );
+
       connectionStateRef.current = state;
 
       if (state === "connected") {
@@ -240,7 +244,11 @@ const VideoCall = ({
 
     // ICE connection monitoring
     pc.oniceconnectionstatechange = () => {
-      console.log("ICE connection state:", pc.iceConnectionState);
+      console.log(
+        "[PeerConnection] ICE connection state changed:",
+        pc.iceConnectionState
+      );
+
       if (pc.iceConnectionState === "failed") {
         console.log("ICE connection failed, restarting ICE");
         pc.restartIce();
@@ -250,11 +258,16 @@ const VideoCall = ({
     // ICE candidate handling
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log("Sending ICE candidate");
+        console.log(
+          "[PeerConnection] Emitting ICE candidate:",
+          event.candidate
+        );
         socket.emit("ice-candidate", {
           to: contactId,
           candidate: event.candidate,
         });
+      } else {
+        console.log("[PeerConnection] ICE gathering complete (null candidate)");
       }
     };
 
@@ -496,6 +509,10 @@ const VideoCall = ({
     try {
       const pc = await setupPeerConnection(stream);
       await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
+      console.log(
+        "[IncomingCall] Remote description set from offer:",
+        callData.offer
+      );
 
       // Process any queued ICE candidates after setting remote description
       while (iceCandidatesQueue.current.length > 0) {
@@ -509,8 +526,18 @@ const VideoCall = ({
       }
 
       const answer = await pc.createAnswer();
+      console.log("[IncomingCall] Created answer:", answer);
       await pc.setLocalDescription(answer);
+      console.log(
+        "[IncomingCall] Local description set with answer:",
+        pc.localDescription
+      );
+
       await waitForIceGatheringComplete(pc); // ✅ ensure ICE complete
+      console.log(
+        "[IncomingCall] Emitting answer-call with:",
+        pc.localDescription
+      );
       socket.emit("answer-call", {
         to: callData.from._id,
         answer: pc.localDescription,
@@ -527,6 +554,10 @@ const VideoCall = ({
         track.enabled = true;
       });
 
+      console.log(
+        "[IncomingCall] Emitting answer-call with:",
+        pc.localDescription
+      );
       socket.emit("answer-call", {
         to: callData.from._id,
         answer: pc.localDescription,
@@ -556,13 +587,18 @@ const VideoCall = ({
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const offer = await pc.createOffer();
+      console.log("[StartCall] Created offer:", offer);
       await pc.setLocalDescription(offer);
+      console.log(
+        "[StartCall] Local description set with offer:",
+        pc.localDescription
+      );
+
       await waitForIceGatheringComplete(pc); // ✅ ensure ICE complete
-      socket.emit("call-user", {
-        to: contactId,
-        offer: pc.localDescription,
-        from: currentUser,
-      });
+      console.log(
+        "[StartCall] Emitting call-user with offer:",
+        pc.localDescription
+      );
 
       socket.emit("call-user", {
         to: contactId,
@@ -637,7 +673,8 @@ const VideoCall = ({
     console.log("Setting up socket event listeners for video call");
 
     socket.on("call-accepted", async ({ answer }) => {
-      console.log("Call accepted event received:", answer);
+      console.log("[Socket] Received call-accepted with answer:", answer);
+
       try {
         if (peerConnectionRef.current && answer) {
           console.log("Setting remote description from answer");
@@ -667,13 +704,14 @@ const VideoCall = ({
     });
 
     socket.on("call-ended", () => {
-      console.log("Call ended event received");
+      console.log("[Socket] Received call-ended signal");
       toast.info("Call ended");
       endCall();
     });
 
     socket.on("ice-candidate", async ({ candidate }) => {
-      console.log("ICE candidate received:", candidate);
+      console.log("[Socket] Received ICE candidate:", candidate);
+
       try {
         if (peerConnectionRef.current) {
           if (peerConnectionRef.current.remoteDescription) {
@@ -695,6 +733,8 @@ const VideoCall = ({
     });
 
     socket.on("call-update", async ({ offer }) => {
+      console.log("[Socket] Received call-update with offer:", offer);
+
       if (!peerConnectionRef.current) return;
 
       try {
@@ -714,6 +754,8 @@ const VideoCall = ({
     });
 
     socket.on("call-update-answer", async ({ answer }) => {
+      console.log("[Socket] Received call-update-answer with answer:", answer);
+
       if (!peerConnectionRef.current) return;
       try {
         await peerConnectionRef.current.setRemoteDescription(
