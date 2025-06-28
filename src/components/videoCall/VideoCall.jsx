@@ -19,6 +19,7 @@ const VideoCall = ({
   contactUsername,
   onClose,
 }) => {
+  console.log("HASEEB KA PROJECT");
   const location = useLocation();
   const navigate = useNavigate();
   const { isIncomingCall, callData } = location.state || {};
@@ -462,6 +463,13 @@ const VideoCall = ({
 
   // Call initialization
   useEffect(() => {
+    console.log("VideoCall mounted:", {
+      currentUser,
+      contactId,
+      isIncomingCall,
+      callData,
+    });
+
     const initializeCall = async () => {
       if (hasInitiatedCall.current) return;
       hasInitiatedCall.current = true;
@@ -532,6 +540,8 @@ const VideoCall = ({
 
   // Modified startCall
   const startCall = async (stream) => {
+    console.log("Starting outgoing call with contactId:", contactId);
+
     try {
       setIsCalling(true);
 
