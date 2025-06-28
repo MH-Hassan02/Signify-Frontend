@@ -872,18 +872,20 @@ const VideoCall = ({
         </div>
 
         <div className="videoSlot">
-          {!remoteStream || !isRemoteVideoEnabled ? (
+          <video
+            className="videoCallVideo remote"
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            style={{
+              display: remoteStream && isRemoteVideoEnabled ? "block" : "none",
+            }}
+          />
+          {(!remoteStream || !isRemoteVideoEnabled) && (
             <img
               src={contactProfilePic}
               alt={contactUsername}
               className="videoCallVideo"
-            />
-          ) : (
-            <video
-              className="videoCallVideo remote"
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
             />
           )}
           <p className="contactNameVideo">
