@@ -509,6 +509,17 @@ const VideoCall = ({
     }
   };
 
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      console.log("🔗 Attaching remoteStream to video element in useEffect");
+      remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current
+        .play()
+        .then(() => console.log("🚀 Remote video playing successfully"))
+        .catch((err) => console.error("❌ Error playing remote video:", err));
+    }
+  }, [remoteStream]);
+
   // Call initialization
   useEffect(() => {
     console.log("VideoCall mounted:", {
