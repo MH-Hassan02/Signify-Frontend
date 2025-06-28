@@ -164,25 +164,52 @@ const VideoCall = ({
 
     // Handle incoming tracks
     pc.ontrack = (event) => {
-      console.log("Received track:", event.track.kind);
+      console.log("🚦 Received track:", event.track.kind, event.track);
 
       if (event.streams && event.streams[0]) {
-        console.log("Using existing remote stream");
+        console.log("✅ Using existing remote stream:", event.streams[0]);
         const remoteStream = event.streams[0];
+
+        console.log("🎥 Remote stream tracks:", remoteStream.getTracks());
+
         remoteStreamRef.current = remoteStream;
         setRemoteStream(remoteStream);
 
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStream;
+          console.log(
+            "🎯 Set remoteVideoRef.srcObject to:",
+            remoteVideoRef.current.srcObject
+          );
+
           remoteVideoRef.current.playsInline = true;
           remoteVideoRef.current.autoplay = true;
 
+          console.log(
+            "🔎 Remote video element state:",
+            "paused:",
+            remoteVideoRef.current.paused,
+            "readyState:",
+            remoteVideoRef.current.readyState
+          );
+
+          // Attempt to play the video, catch errors
+          remoteVideoRef.current
+            .play()
+            .then(() => {
+              console.log("🚀 Remote video started playing successfully");
+            })
+            .catch((err) => {
+              console.error("❌ Error playing remote video:", err);
+            });
+
           // Ensure track is enabled
           event.track.enabled = true;
+          console.log("🔔 Remote track enabled:", event.track.enabled);
 
           // Monitor track state
           event.track.onended = () => {
-            console.log(`${event.track.kind} track ended`);
+            console.warn(`🛑 ${event.track.kind} track ended`);
             if (event.track.kind === "video") {
               setIsRemoteVideoEnabled(false);
             } else if (event.track.kind === "audio") {
@@ -191,7 +218,7 @@ const VideoCall = ({
           };
 
           event.track.onmute = () => {
-            console.log(`${event.track.kind} track muted`);
+            console.warn(`🔇 ${event.track.kind} track muted`);
             if (event.track.kind === "video") {
               setIsRemoteVideoEnabled(false);
             } else if (event.track.kind === "audio") {
@@ -200,21 +227,29 @@ const VideoCall = ({
           };
 
           event.track.onunmute = () => {
-            console.log(`${event.track.kind} track unmuted`);
+            console.log(`🔊 ${event.track.kind} track unmuted`);
+            event.track.enabled = true;
             if (event.track.kind === "video") {
-              event.track.enabled = true;
               setIsRemoteVideoEnabled(true);
             } else if (event.track.kind === "audio") {
-              event.track.enabled = true;
               setIsRemoteMicEnabled(true);
             }
           };
+        } else {
+          console.error(
+            "❌ remoteVideoRef.current is null when trying to attach remote stream"
+          );
         }
+      } else {
+        console.error("❌ No remote streams found in ontrack event:", event);
       }
     };
 
     // Connection state monitoring
     pc.onconnectionstatechange = () => {
+      const remoteVideoTrack = remoteStream?.getVideoTracks?.()[0];
+      console.log("Remote video track after connected:", remoteVideoTrack);
+
       const state = pc.connectionState;
       console.log(
         "[PeerConnection] Connection state changed:",
@@ -507,6 +542,11 @@ const VideoCall = ({
   // Modified handleIncomingCall
   const handleIncomingCall = async (stream) => {
     try {
+      stream.getTracks().forEach((track) => {
+        console.log(`Sending peer: adding ${track.kind} track`, track);
+        pc.addTrack(track, stream);
+      });
+
       const pc = await setupPeerConnection(stream);
       await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
       console.log(
