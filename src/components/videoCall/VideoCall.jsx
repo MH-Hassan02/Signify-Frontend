@@ -542,29 +542,28 @@ const VideoCall = ({
   // Modified handleIncomingCall
   const handleIncomingCall = async (stream) => {
     try {
-      stream.getTracks().forEach((track) => {
-        console.log(`Sending peer: adding ${track.kind} track`, track);
-        pc.addTrack(track, stream);
-      });
-
+      // ✅ Setup peer connection and add local tracks inside setupPeerConnection
       const pc = await setupPeerConnection(stream);
+
+      // ✅ Set the remote offer as the peer connection's remote description
       await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
       console.log(
         "[IncomingCall] Remote description set from offer:",
         callData.offer
       );
 
-      // Process any queued ICE candidates after setting remote description
+      // ✅ Process any ICE candidates that arrived before the remote description was set
       while (iceCandidatesQueue.current.length > 0) {
         const candidate = iceCandidatesQueue.current.shift();
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          console.log("Added queued ICE candidate:", candidate);
+          console.log("✅ Added queued ICE candidate:", candidate);
         } catch (err) {
-          console.error("Failed to add queued ICE candidate:", err);
+          console.error("❌ Failed to add queued ICE candidate:", err);
         }
       }
 
+      // ✅ Create and send an answer to the caller
       const answer = await pc.createAnswer();
       console.log("[IncomingCall] Created answer:", answer);
       await pc.setLocalDescription(answer);
@@ -573,7 +572,9 @@ const VideoCall = ({
         pc.localDescription
       );
 
-      await waitForIceGatheringComplete(pc); // ✅ ensure ICE complete
+      // ✅ Wait for ICE gathering to complete before sending answer
+      await waitForIceGatheringComplete(pc);
+
       console.log(
         "[IncomingCall] Emitting answer-call with:",
         pc.localDescription
@@ -583,28 +584,13 @@ const VideoCall = ({
         answer: pc.localDescription,
       });
 
-      // Ensure all local tracks are properly added and enabled
+      // ✅ Ensure all local tracks are enabled
       stream.getTracks().forEach((track) => {
-        const sender = pc
-          .getSenders()
-          .find((s) => s.track && s.track.kind === track.kind);
-        if (!sender) {
-          pc.addTrack(track, stream);
-        }
         track.enabled = true;
       });
-
-      console.log(
-        "[IncomingCall] Emitting answer-call with:",
-        pc.localDescription
-      );
-      socket.emit("answer-call", {
-        to: callData.from._id,
-        answer: pc.localDescription,
-      });
     } catch (err) {
-      console.error("Error in incoming call flow:", err);
-      toast.error("Failed to setup incoming call");
+      console.error("❌ Error in incoming call flow:", err);
+      toast.error("Failed to set up incoming call");
       endCall();
     }
   };
