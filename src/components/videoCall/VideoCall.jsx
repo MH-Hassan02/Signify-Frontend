@@ -7,12 +7,14 @@ import {
   FaPhoneSlash,
   FaPhone,
   FaCheck,
+  FaHandPaper,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import socket from "../../socket";
 import "./VideoCall.css";
 import { useVideoCall } from "../../contexts/VideoCallContext";
 import { useNavigate, useLocation } from "react-router-dom";
+import SignLanguageTranslator from "../signLanguage/SignLanguageTranslator";
 
 const VideoCall = ({
   currentUser,
@@ -47,6 +49,12 @@ const VideoCall = ({
   const [isRemoteVideoEnabled, setIsRemoteVideoEnabled] = useState(true);
   const [isRemoteMicEnabled, setIsRemoteMicEnabled] = useState(true);
   const [callStatus, setCallStatus] = useState(""); // calling, ringing, connected
+
+  // Sign Language Translation State
+  const [isSignLanguageActive, setIsSignLanguageActive] = useState(false);
+  const [localGesture, setLocalGesture] = useState("No Hand Detected");
+  const [peerGesture, setPeerGesture] = useState("No Hand Detected");
+  const [transcript, setTranscript] = useState("");
 
   const { setIncomingCall, isCalling, setIsCalling } = useVideoCall();
 
@@ -492,6 +500,42 @@ const VideoCall = ({
     }
   };
 
+  // Sign Language Translation Functions
+  const toggleSignLanguage = () => {
+    setIsSignLanguageActive(!isSignLanguageActive);
+    if (!isSignLanguageActive) {
+      toast.success("Sign language detection activated!");
+    } else {
+      toast.info("Sign language detection deactivated");
+    }
+  };
+
+  const handleGestureDetected = (gesture) => {
+    setLocalGesture(gesture);
+    
+    // Share gesture with peer
+    if (isConnected && gesture !== "No Hand Detected" && gesture !== "Error") {
+      socket.emit("gesture-detected", {
+        to: contactId,
+        gesture: gesture,
+        from: currentUser._id
+      });
+    }
+  };
+
+  const handleTranscriptUpdate = (newTranscript) => {
+    setTranscript(newTranscript);
+    
+    // Share transcript with peer (optional - you can disable this if you want)
+    if (isConnected && newTranscript) {
+      socket.emit("transcript-update", {
+        to: contactId,
+        transcript: newTranscript,
+        from: currentUser._id
+      });
+    }
+  };
+
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       console.log("🔗 Attaching remoteStream to video element in useEffect");
@@ -801,6 +845,23 @@ const VideoCall = ({
       }
     });
 
+    // Sign Language Translation Socket Events
+    socket.on("gesture-detected", ({ gesture, from }) => {
+      console.log("[Socket] Received gesture from peer:", gesture, "from:", from);
+      if (from === contactId) {
+        setPeerGesture(gesture);
+      }
+    });
+
+    socket.on("transcript-update", ({ transcript, from }) => {
+      console.log("[Socket] Received transcript update from peer:", transcript, "from:", from);
+      if (from === contactId) {
+        // You can choose to display peer's transcript separately or merge it
+        // For now, we'll just log it
+        console.log("Peer's transcript:", transcript);
+      }
+    });
+
     return () => {
       console.log("Cleaning up socket event listeners");
       socket.off("call-accepted");
@@ -809,6 +870,8 @@ const VideoCall = ({
       socket.off("call-update");
       socket.off("call-update-answer");
       socket.off("call-received");
+      socket.off("gesture-detected");
+      socket.off("transcript-update");
       endCall();
     };
   }, [contactId]);
@@ -941,10 +1004,28 @@ const VideoCall = ({
         <button onClick={toggleVideo}>
           {isVideoOn ? <FaVideo /> : <FaVideoSlash />}
         </button>
+        <button 
+          onClick={toggleSignLanguage}
+          className={isSignLanguageActive ? "signLanguageActive" : ""}
+          title="Toggle Sign Language Translation"
+        >
+          <FaHandPaper />
+        </button>
         <button onClick={endCall} className="endCallBtn">
           <FaPhoneSlash />
         </button>
       </div>
+
+      {/* Sign Language Translator */}
+      {isSignLanguageActive && (
+        <SignLanguageTranslator
+          videoRef={localVideoRef}
+          isActive={isSignLanguageActive && isConnected}
+          onGestureDetected={handleGestureDetected}
+          onTranscriptUpdate={handleTranscriptUpdate}
+          peerGesture={peerGesture}
+        />
+      )}
     </div>
   );
 };

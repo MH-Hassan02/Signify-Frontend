@@ -13,6 +13,8 @@
     "@reduxjs/toolkit": "^2.6.1",
     "@tailwindcss/postcss": "^4.0.14",
     "@tailwindcss/vite": "^4.0.14",
+    "@tensorflow-models/handpose": "^0.1.0",
+    "@tensorflow/tfjs": "^4.22.0",
     "axios": "^1.8.4",
     "firebase": "^11.5.0",
     "moment": "^2.30.1",

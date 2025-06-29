@@ -104,6 +104,18 @@
   background-color: #ff6666 !important;
 }
 
+/* Sign Language Button Styles */
+.videoControls button.signLanguageActive {
+  background-color: #4caf50 !important;
+  box-shadow: 0 0 15px rgba(76, 175, 80, 0.5);
+  animation: pulse 2s infinite;
+}
+
+.videoControls button.signLanguageActive:hover {
+  background-color: #66bb6a !important;
+  box-shadow: 0 0 20px rgba(76, 175, 80, 0.7);
+}
+
 /* Add styles for the local video mirror effect */
 .videoCallVideo.local {
   transform: scaleX(-1);
