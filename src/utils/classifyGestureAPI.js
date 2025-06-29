@@ -1,7 +1,9 @@
 // Configuration for API endpoints
 const API_CONFIG = {
   // Deployed Python backend on Render
-  SIGN_LANGUAGE_API: process.env.REACT_APP_SIGN_LANGUAGE_API || "https://python-sign-language-backend.onrender.com"
+  SIGN_LANGUAGE_API:
+    process.env.REACT_APP_SIGN_LANGUAGE_API ||
+    "https://gesture-classification-api-python.onrender.com",
 };
 
 export async function classifyGestureAPI(landmarks) {
@@ -37,4 +39,4 @@ export async function classifyGestureAPI(landmarks) {
     }
     return "Error";
   }
-} 
+}
