@@ -52,7 +52,7 @@ const BottomNav = () => {
                 className="profileImage"
               />
             </div>
-            <span className="navText">Profile</span>
+            <span className="navText">{userInfo.username || "Profile"}</span>
           </div>
           {showSignOut && (
             <div className="signOutBtnContainer">

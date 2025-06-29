@@ -134,6 +134,11 @@
   color: #000;
 }
 
+.callStatus.connecting {
+  background-color: rgba(156, 39, 176, 0.9);
+  color: white;
+}
+
 .callStatus.connected {
   background-color: rgba(76, 175, 80, 0.9);
   color: white;

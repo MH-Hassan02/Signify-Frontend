@@ -536,7 +536,7 @@ const VideoCall = ({
   // Modified handleIncomingCall
   const handleIncomingCall = async (stream) => {
     try {
-      setCallStatus("ringing"); // Set status to ringing for incoming calls
+      setCallStatus("connecting"); // Changed from "ringing" to "connecting" for receiver
       
       // ✅ Setup peer connection and add local tracks inside setupPeerConnection
       const pc = await setupPeerConnection(stream);
@@ -693,6 +693,11 @@ const VideoCall = ({
     socket.on("call-accepted", async ({ answer }) => {
       console.log("[Socket] Received call-accepted with answer:", answer);
 
+      // Update sender's status from "calling" to "ringing" when receiver accepts
+      if (callStatus === "calling") {
+        setCallStatus("ringing");
+      }
+
       try {
         if (peerConnectionRef.current && answer) {
           console.log("Setting remote description from answer");
@@ -842,6 +847,12 @@ const VideoCall = ({
             <>
               <FaPhone className="statusIcon ringing" />
               Ringing...
+            </>
+          )}
+          {callStatus === "connecting" && (
+            <>
+              <FaPhone className="statusIcon" />
+              Connecting...
             </>
           )}
           {callStatus === "connected" && (

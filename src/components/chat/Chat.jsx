@@ -29,13 +29,18 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
   const { incomingCall, setIncomingCall, isCalling } = useVideoCall();
 
   useEffect(() => {
-    socket.emit("setup", currentUser);
+    if (currentUser && currentUser._id) {
+      socket.emit("setup", currentUser);
+    }
   }, [currentUser]);
 
   useEffect(() => {
     const fetchMessages = async () => {
-      if (selectedContact) {
+      if (selectedContact && currentUser && currentUser._id) {
+        console.log("🔄 Fetching messages for:", selectedContact.username);
         setLoading(true);
+        setMessages([]); // Clear previous messages immediately
+        
         try {
           const res = await axios.get(
             `${import.meta.env.VITE_BASE_URL}/messages/${currentUser._id}/${
@@ -43,16 +48,39 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
             }`,
             { withCredentials: true }
           );
-          setMessages(res.data);
+          
+          console.log("📨 Messages response:", res.data);
+          console.log("📨 Messages length:", res.data ? res.data.length : 0);
+          
+          // Only show toast if there are actually no messages
+          if (!res.data || res.data.length === 0) {
+            console.log("📭 No messages found, showing toast");
+            toast.info("No Messages Yet");
+            setMessages([]);
+          } else {
+            console.log("✅ Setting messages:", res.data.length, "messages");
+            setMessages(res.data);
+          }
+          
           setIsInitialLoad(true);
 
-          await axios.put(
-            `${import.meta.env.VITE_BASE_URL}/messages/markAsRead`,
-            { senderId: selectedContact._id, receiverId: currentUser._id },
-            { withCredentials: true }
-          );
+          // Mark messages as read only if there are messages
+          if (res.data && res.data.length > 0) {
+            await axios.put(
+              `${import.meta.env.VITE_BASE_URL}/messages/markAsRead`,
+              { senderId: selectedContact._id, receiverId: currentUser._id },
+              { withCredentials: true }
+            );
+          }
         } catch (error) {
-          toast.info("No Messages Yet");
+          console.error("❌ Error fetching messages:", error);
+          // Only show toast for actual errors, not for empty messages
+          if (error.response && error.response.status !== 404) {
+            toast.error("Error loading messages");
+          } else {
+            toast.info("No Messages Yet");
+          }
+          setMessages([]);
         } finally {
           setLoading(false);
         }
@@ -60,27 +88,50 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
     };
 
     fetchMessages();
-  }, [selectedContact]); // Remove messages dependency to fix infinite loop
+  }, [selectedContact, currentUser]);
 
   useEffect(() => {
-    console.log(selectedContact, "selectedContact");
-    socket.on("typing", ({ from }) => {
+    if (!selectedContact) return;
+
+    const handleMessageReceived = (newMsg) => {
+      if (
+        newMsg.sender._id === selectedContact._id ||
+        newMsg.receiver === selectedContact._id
+      ) {
+        setMessages((prev) => [...prev, newMsg]);
+      }
+    };
+
+    socket.on("message received", handleMessageReceived);
+
+    return () => {
+      socket.off("message received", handleMessageReceived);
+    };
+  }, [selectedContact]);
+
+  useEffect(() => {
+    if (!selectedContact) return;
+
+    const handleTyping = ({ from }) => {
       if (from === selectedContact._id) {
-        console.log("Typing bubble actuve");
+        console.log("Typing bubble active");
         setSomeoneTyping(true);
       }
-    });
+    };
 
-    socket.on("stop typing", ({ from }) => {
+    const handleStopTyping = ({ from }) => {
       if (from === selectedContact._id) {
         console.log("Typing bubble stopping");
         setSomeoneTyping(false);
       }
-    });
+    };
+
+    socket.on("typing", handleTyping);
+    socket.on("stop typing", handleStopTyping);
 
     return () => {
-      socket.off("typing");
-      socket.off("stop typing");
+      socket.off("typing", handleTyping);
+      socket.off("stop typing", handleStopTyping);
     };
   }, [selectedContact]);
 
@@ -202,21 +253,6 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
 
     markAsRead();
   }, [messages, someoneTyping]);
-
-  useEffect(() => {
-    socket.on("message received", (newMsg) => {
-      if (
-        newMsg.sender._id === selectedContact._id ||
-        newMsg.receiver === selectedContact._id
-      ) {
-        setMessages((prev) => [...prev, newMsg]);
-      }
-    });
-
-    return () => {
-      socket.off("message received");
-    };
-  }, [selectedContact]);
 
   function formatMessageTime(date) {
     const m = moment(date);

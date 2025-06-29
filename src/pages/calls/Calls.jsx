@@ -56,10 +56,11 @@ const Calls = () => {
     setVideoCallActive(false);
   };
 
-    useEffect(() => {
+  useEffect(() => {
+    if (userInfo && userInfo._id) {
       socket.emit("setup", userInfo);
-    }, [userInfo]);
-  
+    }
+  }, [userInfo]);
 
   return (
     <div className="callsContainer">
