@@ -50,7 +50,6 @@ const SignLanguageTranslator = ({
         const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
         if (debugInfo) {
           const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
-          console.log('WebGL Renderer:', renderer);
         }
         
         return true;
@@ -70,10 +69,8 @@ const SignLanguageTranslator = ({
       try {
         if (webglSupported) {
           await tf.setBackend('webgl');
-          console.log('Using WebGL backend');
         } else {
           await tf.setBackend('cpu');
-          console.log('Using CPU backend (WebGL not available)');
         }
       } catch (error) {
         console.warn('Failed to set backend, using default:', error);
@@ -90,7 +87,6 @@ const SignLanguageTranslator = ({
       try {
         await tf.setBackend("webgl");
         handposeModel.current = await handpose.load();
-        console.log("Handpose model loaded successfully");
         setIsModelLoaded(true);
         toast.success("Sign language detection ready!");
       } catch (err) {
@@ -118,9 +114,7 @@ const SignLanguageTranslator = ({
           );
           
           if (hands && hands.length > 0 && hands[0].landmarks) {
-            console.log("Sending landmarks for classification");
             const gesture = await classifyGestureAPI(hands[0].landmarks);
-            console.log("Detected gesture:", gesture);
             
             if (gesture && gesture !== "Error" && gesture !== "Unknown") {
               setDetectedGesture(gesture);
@@ -128,6 +122,8 @@ const SignLanguageTranslator = ({
               
               // Only add to transcript if it's a new gesture (not duplicate)
               if (gesture !== lastLocalGesture && !isTranscriptCleared) {
+                console.log(lastLocalGesture, "lastLocalGesture")
+                console.log("gesture", gesture)
                 const newTranscript = transcript + (transcript ? " " : "") + gesture;
                 setTranscript(newTranscript);
                 onTranscriptUpdate?.(newTranscript);

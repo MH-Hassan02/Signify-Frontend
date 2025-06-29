@@ -23,7 +23,6 @@ const VideoCall = ({
   contactUsername,
   onClose,
 }) => {
-  console.log("HASEEB KA PROJECT");
   const location = useLocation();
   const navigate = useNavigate();
   const { isIncomingCall, callData } = location.state || {};
@@ -156,62 +155,39 @@ const VideoCall = ({
 
   // Enhanced peer connection setup
   const setupPeerConnection = async (stream) => {
-    console.log("Setting up peer connection");
     const pc = new RTCPeerConnection(servers); // Use the optimized servers configuration
     peerConnectionRef.current = pc;
 
     // Add all tracks to the peer connection
     stream.getTracks().forEach((track) => {
-      console.log(`Adding ${track.kind} track to peer connection`);
       track.enabled = true;
       pc.addTrack(track, stream);
-      console.log(`${track.kind} track added successfully`);
     });
 
     // Handle incoming tracks
     pc.ontrack = (event) => {
-      console.log("🚦 Received track:", event.track.kind, event.track);
 
       if (event.streams && event.streams[0]) {
-        console.log("✅ Using existing remote stream:", event.streams[0]);
         const remoteStream = event.streams[0];
-
-        console.log("🎥 Remote stream tracks:", remoteStream.getTracks());
 
         remoteStreamRef.current = remoteStream;
         setRemoteStream(remoteStream);
 
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStream;
-          console.log(
-            "🎯 Set remoteVideoRef.srcObject to:",
-            remoteVideoRef.current.srcObject
-          );
-
           remoteVideoRef.current.playsInline = true;
           remoteVideoRef.current.autoplay = true;
 
-          console.log(
-            "🔎 Remote video element state:",
-            "paused:",
-            remoteVideoRef.current.paused,
-            "readyState:",
-            remoteVideoRef.current.readyState
-          );
 
           // Attempt to play the video, catch errors
           remoteVideoRef.current
             .play()
-            .then(() => {
-              console.log("🚀 Remote video started playing successfully");
-            })
             .catch((err) => {
               console.error("❌ Error playing remote video:", err);
             });
 
           // Ensure track is enabled
           event.track.enabled = true;
-          console.log("🔔 Remote track enabled:", event.track.enabled);
 
           // Monitor track state
           event.track.onended = () => {
@@ -233,7 +209,6 @@ const VideoCall = ({
           };
 
           event.track.onunmute = () => {
-            console.log(`🔊 ${event.track.kind} track unmuted`);
             event.track.enabled = true;
             if (event.track.kind === "video") {
               setIsRemoteVideoEnabled(true);
@@ -254,10 +229,6 @@ const VideoCall = ({
     // Connection state monitoring
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
-      console.log(
-        "[PeerConnection] Connection state changed:",
-        pc.connectionState
-      );
 
       connectionStateRef.current = state;
 
@@ -297,10 +268,6 @@ const VideoCall = ({
     // ICE candidate handling
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log(
-          "[PeerConnection] Emitting ICE candidate:",
-          event.candidate
-        );
         socket.emit("ice-candidate", {
           to: contactId,
           candidate: event.candidate,
@@ -365,11 +332,8 @@ const VideoCall = ({
         audio: true,
       });
 
-      console.log("Media stream obtained:", stream.getTracks().map(t => t.kind));
-
       // Ensure all tracks are enabled
       stream.getTracks().forEach((track) => {
-        console.log(`Ensuring ${track.kind} track is enabled`);
         track.enabled = true;
       });
 
@@ -386,7 +350,6 @@ const VideoCall = ({
         // Try to play immediately
         try {
           await localVideoRef.current.play();
-          console.log("Local video playing successfully");
         } catch (err) {
           console.warn("Auto-play failed, will play on user interaction:", err);
         }
@@ -398,7 +361,6 @@ const VideoCall = ({
       
       // Fallback: try video only if audio fails
       try {
-        console.log("Trying video-only fallback");
         const videoStream = await navigator.mediaDevices.getUserMedia({
           video: true,
         });
@@ -551,24 +513,15 @@ const VideoCall = ({
 
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
-      console.log("🔗 Attaching remoteStream to video element in useEffect");
       remoteVideoRef.current.srcObject = remoteStream;
       remoteVideoRef.current
         .play()
-        .then(() => console.log("🚀 Remote video playing successfully"))
         .catch((err) => console.error("❌ Error playing remote video:", err));
     }
   }, [remoteStream]);
 
   // Call initialization
   useEffect(() => {
-    console.log("VideoCall mounted:", {
-      currentUser,
-      contactId,
-      isIncomingCall,
-      callData,
-    });
-
     const initializeCall = async () => {
       if (hasInitiatedCall.current) return;
       hasInitiatedCall.current = true;
@@ -600,17 +553,12 @@ const VideoCall = ({
 
       // ✅ Set the remote offer as the peer connection's remote description
       await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
-      console.log(
-        "[IncomingCall] Remote description set from offer:",
-        callData.offer
-      );
 
       // ✅ Process any ICE candidates that arrived before the remote description was set
       while (iceCandidatesQueue.current.length > 0) {
         const candidate = iceCandidatesQueue.current.shift();
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          console.log("✅ Added queued ICE candidate:", candidate);
         } catch (err) {
           console.error("❌ Failed to add queued ICE candidate:", err);
         }
@@ -618,20 +566,11 @@ const VideoCall = ({
 
       // ✅ Create and send an answer to the caller
       const answer = await pc.createAnswer();
-      console.log("[IncomingCall] Created answer:", answer);
       await pc.setLocalDescription(answer);
-      console.log(
-        "[IncomingCall] Local description set with answer:",
-        pc.localDescription
-      );
 
       // ✅ Wait for ICE gathering to complete before sending answer
       await waitForIceGatheringComplete(pc);
 
-      console.log(
-        "[IncomingCall] Emitting answer-call with:",
-        pc.localDescription
-      );
       socket.emit("answer-call", {
         to: callData.from._id,
         answer: pc.localDescription,
@@ -652,7 +591,6 @@ const VideoCall = ({
   // Modified startCall
   const startCall = async (stream) => {
     try {
-      console.log("[StartCall] Starting call setup");
       setIsCalling(true);
       setCallStatus("calling"); // Set status to calling
 
@@ -660,18 +598,9 @@ const VideoCall = ({
       peerConnectionRef.current = pc;
 
       const offer = await pc.createOffer();
-      console.log("[StartCall] Created offer:", offer);
       await pc.setLocalDescription(offer);
-      console.log(
-        "[StartCall] Local description set with offer:",
-        pc.localDescription
-      );
-
+     
       await waitForIceGatheringComplete(pc);
-      console.log(
-        "[StartCall] Emitting call-user with offer:",
-        pc.localDescription
-      );
 
       socket.emit("call-user", {
         to: contactId,
@@ -753,13 +682,10 @@ const VideoCall = ({
 
   // Socket event handlers
   useEffect(() => {
-    console.log("Setting up socket event listeners for video call");
-
     // Listen for call-received event to update sender's status - set up immediately
     socket.on("call-received", () => {
-      console.log("[Socket] Call received by receiver, updating status to ringing");
       console.log("[Socket] Current call status:", callStatus);
-      if (callStatus === "ringing") {
+      if (callStatus === "calling" || callStatus === "") {
         console.log("[Socket] Changing status from calling to ringing");
         setCallStatus("ringing");
       } else {
@@ -777,11 +703,9 @@ const VideoCall = ({
 
       try {
         if (peerConnectionRef.current && answer) {
-          console.log("Setting remote description from answer");
           await peerConnectionRef.current.setRemoteDescription(
             new RTCSessionDescription(answer)
           );
-          console.log("Remote description set successfully");
 
           // Process queued ICE candidates AFTER setting remote description
           while (iceCandidatesQueue.current.length > 0) {
@@ -790,7 +714,6 @@ const VideoCall = ({
               await peerConnectionRef.current.addIceCandidate(
                 new RTCIceCandidate(candidate)
               );
-              console.log("Added queued ICE candidate:", candidate);
             } catch (err) {
               console.error("Failed to add queued ICE candidate:", err);
             }
@@ -815,13 +738,10 @@ const VideoCall = ({
       try {
         if (peerConnectionRef.current) {
           if (peerConnectionRef.current.remoteDescription) {
-            console.log("Adding ICE candidate");
             await peerConnectionRef.current.addIceCandidate(
               new RTCIceCandidate(candidate)
             );
-            console.log("ICE candidate added successfully");
           } else {
-            console.log("Queueing ICE candidate - no remote description yet");
             iceCandidatesQueue.current.push(candidate);
           }
         } else {
