@@ -29,10 +29,10 @@ const BottomNav = () => {
         <span className="navText">Home</span>
       </Link>
 
-      <Link to="/about" className="navItem">
+      <a href="https://6000-firebase-studio-1748800724016.cluster-w5vd22whf5gmav2vgkomwtc4go.cloudworkstations.dev/" className="navItem">
         <FiInfo size={24} />
-        <span className="navText">About</span>
-      </Link>
+        <span className="navText">Standalone</span>
+      </a>
 
       <Link to="/calls" className="navItem">
         <HiOutlineVideoCamera size={24} />

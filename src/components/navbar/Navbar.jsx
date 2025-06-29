@@ -30,7 +30,7 @@ const Navbar = () => {
       <div className="navLinks">
         <Link to="/">Home</Link>
         <Link to="/calls">Calls</Link>
-        <Link to="/">About</Link>
+        <a href="https://6000-firebase-studio-1748800724016.cluster-w5vd22whf5gmav2vgkomwtc4go.cloudworkstations.dev/">Standalone</a>
         <Link to="/">Our Services</Link>
         <Link to="/">Contact Us</Link>
       </div>
