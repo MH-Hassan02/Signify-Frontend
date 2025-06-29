@@ -27,12 +27,12 @@ const SignLanguageTranslator = ({
   const [showCustomGestures, setShowCustomGestures] = useState(false);
   const [webglSupported, setWebglSupported] = useState(true);
   const [isTranscriptCleared, setIsTranscriptCleared] = useState(false);
+  const [lastLocalGesture, setLastLocalGesture] = useState("");
+  const [lastPeerGesture, setLastPeerGesture] = useState("");
   
   const handposeModel = useRef(null);
   const detectionInterval = useRef(null);
   const speechSynthesis = window.speechSynthesis;
-  const currentTranscriptRef = useRef("");
-  const lastGestureRef = useRef("");
 
   // Check WebGL support
   useEffect(() => {
@@ -127,12 +127,11 @@ const SignLanguageTranslator = ({
               onGestureDetected?.(gesture);
               
               // Only add to transcript if it's a new gesture (not duplicate)
-              if (gesture !== lastGestureRef.current && !isTranscriptCleared) {
-                const newTranscript = currentTranscriptRef.current + (currentTranscriptRef.current ? " " : "") + gesture;
-                currentTranscriptRef.current = newTranscript;
+              if (gesture !== lastLocalGesture && !isTranscriptCleared) {
+                const newTranscript = transcript + (transcript ? " " : "") + gesture;
                 setTranscript(newTranscript);
                 onTranscriptUpdate?.(newTranscript);
-                lastGestureRef.current = gesture;
+                setLastLocalGesture(gesture);
               }
               
               // Add to history
@@ -144,11 +143,11 @@ const SignLanguageTranslator = ({
               setGestureHistory(prev => [historyItem, ...prev.slice(0, 9)]); // Keep last 10
             } else {
               setDetectedGesture("No Hand Detected");
-              lastGestureRef.current = ""; // Reset last gesture when no hand detected
+              setLastLocalGesture(""); // Reset last gesture when no hand detected
             }
           } else {
             setDetectedGesture("No Hand Detected");
-            lastGestureRef.current = ""; // Reset last gesture when no hand detected
+            setLastLocalGesture(""); // Reset last gesture when no hand detected
           }
         } catch (err) {
           console.error("Error detecting gesture:", err);
@@ -164,22 +163,29 @@ const SignLanguageTranslator = ({
         }
       };
     }
-  }, [isActive, isModelLoaded, videoRef, isTranscriptCleared, onGestureDetected, onTranscriptUpdate]);
+  }, [isActive, isModelLoaded, videoRef, transcript, lastLocalGesture, isTranscriptCleared, onGestureDetected, onTranscriptUpdate]);
 
   // Handle peer transcript updates to prevent duplicates
   useEffect(() => {
     if (peerTranscript && peerTranscript !== transcript) {
-      // Only update if it's a new transcript (not a duplicate)
-      setTranscript(peerTranscript);
+      // Extract the last gesture from peer transcript
+      const words = peerTranscript.split(" ");
+      const lastGesture = words[words.length - 1];
+      
+      // Only update if it's a new gesture (not duplicate)
+      if (lastGesture !== lastPeerGesture) {
+        setTranscript(peerTranscript);
+        setLastPeerGesture(lastGesture);
+      }
     }
-  }, [peerTranscript]);
+  }, [peerTranscript, lastPeerGesture]);
 
   // Cleanup effect when sign language is disabled
   useEffect(() => {
     if (!isActive) {
       setDetectedGesture("No Hand Detected");
-      lastGestureRef.current = "";
-      currentTranscriptRef.current = "";
+      setLastLocalGesture("");
+      setLastPeerGesture("");
       setIsTranscriptCleared(false);
     }
   }, [isActive]);
@@ -240,9 +246,9 @@ const SignLanguageTranslator = ({
 
   const clearTranscript = () => {
     setTranscript("");
-    currentTranscriptRef.current = "";
-    lastGestureRef.current = ""; // Reset last gesture to allow new gestures
-    setIsTranscriptCleared(true); // Mark as cleared
+    setLastLocalGesture("");
+    setLastPeerGesture("");
+    setIsTranscriptCleared(true);
     onTranscriptUpdate?.("");
     
     // Reset the cleared flag after a short delay to allow new gestures
@@ -384,33 +390,6 @@ const SignLanguageTranslator = ({
           </div>
           <div className="transcriptText">
             {peerTranscript}
-          </div>
-        </div>
-      )}
-
-      {/* Combined Transcript Section - Show when both are active */}
-      {isLocalActive && isPeerActive && transcript && peerTranscript && (
-        <div className="transcriptSection combined">
-          <div className="transcriptHeader">
-            <h3>Combined Transcript</h3>
-            <div className="transcriptControls">
-              <button 
-                className="speakButton"
-                onClick={() => speakText(`${transcript} ${peerTranscript}`)}
-                disabled={isSpeaking || (!transcript && !peerTranscript)}
-                title="Speak combined transcript"
-              >
-                <FaVolumeUp />
-              </button>
-            </div>
-          </div>
-          <div className="transcriptText">
-            <div className="transcriptPart">
-              <strong>You:</strong> {transcript}
-            </div>
-            <div className="transcriptPart">
-              <strong>{contactUsername}:</strong> {peerTranscript}
-            </div>
           </div>
         </div>
       )}
