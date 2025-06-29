@@ -52,9 +52,11 @@ const VideoCall = ({
 
   // Sign Language Translation State
   const [isSignLanguageActive, setIsSignLanguageActive] = useState(false);
+  const [isPeerSignLanguageActive, setIsPeerSignLanguageActive] = useState(false);
   const [localGesture, setLocalGesture] = useState("No Hand Detected");
   const [peerGesture, setPeerGesture] = useState("No Hand Detected");
   const [transcript, setTranscript] = useState("");
+  const [peerTranscript, setPeerTranscript] = useState("");
 
   const { setIncomingCall, isCalling, setIsCalling } = useVideoCall();
 
@@ -502,8 +504,19 @@ const VideoCall = ({
 
   // Sign Language Translation Functions
   const toggleSignLanguage = () => {
-    setIsSignLanguageActive(!isSignLanguageActive);
-    if (!isSignLanguageActive) {
+    const newStatus = !isSignLanguageActive;
+    setIsSignLanguageActive(newStatus);
+    
+    // Emit socket event to inform peer about sign language status
+    if (isConnected) {
+      socket.emit("sign-language-toggle", {
+        to: contactId,
+        isActive: newStatus,
+        from: currentUser._id
+      });
+    }
+    
+    if (newStatus) {
       toast.success("Sign language detection activated!");
     } else {
       toast.info("Sign language detection deactivated");
@@ -526,8 +539,8 @@ const VideoCall = ({
   const handleTranscriptUpdate = (newTranscript) => {
     setTranscript(newTranscript);
     
-    // Share transcript with peer (optional - you can disable this if you want)
-    if (isConnected && newTranscript) {
+    // Share transcript with peer only if it's not empty
+    if (isConnected && newTranscript && newTranscript.trim()) {
       socket.emit("transcript-update", {
         to: contactId,
         transcript: newTranscript,
@@ -677,6 +690,14 @@ const VideoCall = ({
   // Clean up call resources
   const endCall = () => {
     socket.emit("end-call", { to: contactId });
+
+    // Reset sign language states
+    setIsSignLanguageActive(false);
+    setIsPeerSignLanguageActive(false);
+    setLocalGesture("No Hand Detected");
+    setPeerGesture("No Hand Detected");
+    setTranscript("");
+    setPeerTranscript("");
 
     if (peerConnectionRef.current) {
       try {
@@ -846,6 +867,18 @@ const VideoCall = ({
     });
 
     // Sign Language Translation Socket Events
+    socket.on("sign-language-toggle", ({ isActive, from }) => {
+      console.log("[Socket] Received sign language toggle from peer:", isActive, "from:", from);
+      if (from === contactId) {
+        setIsPeerSignLanguageActive(isActive);
+        if (isActive) {
+          toast.info(`${contactUsername} has enabled sign language detection`);
+        } else {
+          toast.info(`${contactUsername} has disabled sign language detection`);
+        }
+      }
+    });
+
     socket.on("gesture-detected", ({ gesture, from }) => {
       console.log("[Socket] Received gesture from peer:", gesture, "from:", from);
       if (from === contactId) {
@@ -856,9 +889,7 @@ const VideoCall = ({
     socket.on("transcript-update", ({ transcript, from }) => {
       console.log("[Socket] Received transcript update from peer:", transcript, "from:", from);
       if (from === contactId) {
-        // You can choose to display peer's transcript separately or merge it
-        // For now, we'll just log it
-        console.log("Peer's transcript:", transcript);
+        setPeerTranscript(transcript);
       }
     });
 
@@ -870,6 +901,7 @@ const VideoCall = ({
       socket.off("call-update");
       socket.off("call-update-answer");
       socket.off("call-received");
+      socket.off("sign-language-toggle");
       socket.off("gesture-detected");
       socket.off("transcript-update");
       endCall();
@@ -1017,13 +1049,17 @@ const VideoCall = ({
       </div>
 
       {/* Sign Language Translator */}
-      {isSignLanguageActive && (
+      {(isSignLanguageActive || isPeerSignLanguageActive) && (
         <SignLanguageTranslator
           videoRef={localVideoRef}
           isActive={isSignLanguageActive && isConnected}
           onGestureDetected={handleGestureDetected}
           onTranscriptUpdate={handleTranscriptUpdate}
           peerGesture={peerGesture}
+          peerTranscript={peerTranscript}
+          isPeerActive={isPeerSignLanguageActive}
+          isLocalActive={isSignLanguageActive}
+          contactUsername={contactUsername}
         />
       )}
     </div>

@@ -364,6 +364,11 @@
   color: white;
 }
 
+.status.peer-active {
+  background-color: #9c27b0;
+  color: white;
+}
+
 /* WebGL Warning */
 .webglWarning {
   background-color: rgba(255, 152, 0, 0.1);
@@ -387,4 +392,26 @@
 
 .webglWarning li {
   margin-bottom: 4px;
+}
+
+/* Peer Active Message */
+.peerActiveMessage {
+  background-color: rgba(156, 39, 176, 0.1);
+  border: 1px solid #9c27b0;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.peerActiveMessage p {
+  margin: 0 0 8px 0;
+  color: #9c27b0;
+  font-size: 0.9rem;
+}
+
+.peerActiveMessage p:last-child {
+  margin-bottom: 0;
+  color: #ccc;
+  font-size: 0.8rem;
 } 

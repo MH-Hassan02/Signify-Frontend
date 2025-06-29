@@ -11,7 +11,11 @@ const SignLanguageTranslator = ({
   isActive, 
   onGestureDetected, 
   onTranscriptUpdate,
-  peerGesture = "No Hand Detected" 
+  peerGesture = "No Hand Detected",
+  peerTranscript = "",
+  isPeerActive = false,
+  isLocalActive = false,
+  contactUsername = "Peer"
 }) => {
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [detectedGesture, setDetectedGesture] = useState("No Hand Detected");
@@ -22,6 +26,8 @@ const SignLanguageTranslator = ({
   const [showHistory, setShowHistory] = useState(false);
   const [showCustomGestures, setShowCustomGestures] = useState(false);
   const [webglSupported, setWebglSupported] = useState(true);
+  const [previousGesture, setPreviousGesture] = useState("");
+  const [isTranscriptCleared, setIsTranscriptCleared] = useState(false);
   
   const handposeModel = useRef(null);
   const detectionInterval = useRef(null);
@@ -119,10 +125,13 @@ const SignLanguageTranslator = ({
               setDetectedGesture(gesture);
               onGestureDetected?.(gesture);
               
-              // Add to transcript
-              const newTranscript = transcript + (transcript ? " " : "") + gesture;
-              setTranscript(newTranscript);
-              onTranscriptUpdate?.(newTranscript);
+              // Only add to transcript if it's a new gesture (not duplicate)
+              if (gesture !== previousGesture && !isTranscriptCleared) {
+                const newTranscript = transcript + (transcript ? " " : "") + gesture;
+                setTranscript(newTranscript);
+                onTranscriptUpdate?.(newTranscript);
+                setPreviousGesture(gesture);
+              }
               
               // Add to history
               const historyItem = {
@@ -133,9 +142,11 @@ const SignLanguageTranslator = ({
               setGestureHistory(prev => [historyItem, ...prev.slice(0, 9)]); // Keep last 10
             } else {
               setDetectedGesture("No Hand Detected");
+              setPreviousGesture(""); // Reset previous gesture when no hand detected
             }
           } else {
             setDetectedGesture("No Hand Detected");
+            setPreviousGesture(""); // Reset previous gesture when no hand detected
           }
         } catch (err) {
           console.error("Error detecting gesture:", err);
@@ -151,7 +162,24 @@ const SignLanguageTranslator = ({
         }
       };
     }
-  }, [isActive, isModelLoaded, videoRef, transcript, onGestureDetected, onTranscriptUpdate]);
+  }, [isActive, isModelLoaded, videoRef, transcript, previousGesture, isTranscriptCleared, onGestureDetected, onTranscriptUpdate]);
+
+  // Handle peer transcript updates to prevent duplicates
+  useEffect(() => {
+    if (peerTranscript && peerTranscript !== transcript) {
+      // Only update if it's a new transcript (not a duplicate)
+      setTranscript(peerTranscript);
+    }
+  }, [peerTranscript]);
+
+  // Cleanup effect when sign language is disabled
+  useEffect(() => {
+    if (!isActive) {
+      setDetectedGesture("No Hand Detected");
+      setPreviousGesture("");
+      setIsTranscriptCleared(false);
+    }
+  }, [isActive]);
 
   // Text-to-Speech functionality
   const speakText = (text) => {
@@ -209,7 +237,14 @@ const SignLanguageTranslator = ({
 
   const clearTranscript = () => {
     setTranscript("");
+    setPreviousGesture(""); // Reset previous gesture to allow new gestures
+    setIsTranscriptCleared(true); // Mark as cleared
     onTranscriptUpdate?.("");
+    
+    // Reset the cleared flag after a short delay to allow new gestures
+    setTimeout(() => {
+      setIsTranscriptCleared(false);
+    }, 1000);
   };
 
   const clearHistory = () => {
@@ -227,6 +262,11 @@ const SignLanguageTranslator = ({
           <span className={`status ${webglSupported ? 'webgl' : 'cpu'}`}>
             {webglSupported ? 'WebGL' : 'CPU Mode'}
           </span>
+          {isPeerActive && !isLocalActive && (
+            <span className="status peer-active">
+              {contactUsername} Active
+            </span>
+          )}
         </div>
       </div>
       
@@ -242,68 +282,107 @@ const SignLanguageTranslator = ({
         </div>
       )}
 
-      {/* Main Controls */}
-      <div className="translatorControls">
-        <div className="gestureDisplay">
-          <h3>Detected Gesture</h3>
-          <div className="gestureText">
-            {detectedGesture}
-            {detectedGesture !== "No Hand Detected" && (
+      {/* Show message when peer is active but local user isn't */}
+      {isPeerActive && !isLocalActive && (
+        <div className="peerActiveMessage">
+          <p>📱 {contactUsername} has enabled sign language detection</p>
+          <p>Enable your camera to translate your gestures too!</p>
+        </div>
+      )}
+
+      {/* Main Controls - Only show if local user is active */}
+      {isLocalActive && (
+        <div className="translatorControls">
+          <div className="gestureDisplay">
+            <h3>Your Gesture</h3>
+            <div className="gestureText">
+              {detectedGesture}
+              {detectedGesture !== "No Hand Detected" && (
+                <button 
+                  className="speakButton"
+                  onClick={() => speakGesture(detectedGesture)}
+                  disabled={isSpeaking}
+                >
+                  <FaVolumeUp />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Peer's Gesture Display - Show if peer is active */}
+      {isPeerActive && (
+        <div className="translatorControls">
+          <div className="peerGestureDisplay">
+            <h3>{contactUsername}'s Gesture</h3>
+            <div className="gestureText">
+              {peerGesture}
+              {peerGesture !== "No Hand Detected" && (
+                <button 
+                  className="speakButton"
+                  onClick={() => speakGesture(peerGesture)}
+                  disabled={isSpeaking}
+                >
+                  <FaVolumeUp />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Local Transcript Section - Only show if local user is active */}
+      {isLocalActive && (
+        <div className="transcriptSection">
+          <div className="transcriptHeader">
+            <h3>Your Transcript</h3>
+            <div className="transcriptControls">
               <button 
                 className="speakButton"
-                onClick={() => speakGesture(detectedGesture)}
-                disabled={isSpeaking}
+                onClick={speakTranscript}
+                disabled={isSpeaking || !transcript}
+                title="Speak transcript"
               >
                 <FaVolumeUp />
               </button>
-            )}
+              <button 
+                className="clearButton"
+                onClick={clearTranscript}
+                disabled={!transcript}
+                title="Clear transcript"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <div className="transcriptText">
+            {transcript || "No gestures detected yet..."}
           </div>
         </div>
+      )}
 
-        <div className="peerGestureDisplay">
-          <h3>Peer's Gesture</h3>
-          <div className="gestureText">
-            {peerGesture}
-            {peerGesture !== "No Hand Detected" && (
+      {/* Peer's Transcript Section - Show if peer is active */}
+      {isPeerActive && peerTranscript && (
+        <div className="transcriptSection">
+          <div className="transcriptHeader">
+            <h3>{contactUsername}'s Transcript</h3>
+            <div className="transcriptControls">
               <button 
                 className="speakButton"
-                onClick={() => speakGesture(peerGesture)}
-                disabled={isSpeaking}
+                onClick={() => speakText(peerTranscript)}
+                disabled={isSpeaking || !peerTranscript}
+                title="Speak peer transcript"
               >
                 <FaVolumeUp />
               </button>
-            )}
+            </div>
+          </div>
+          <div className="transcriptText">
+            {peerTranscript}
           </div>
         </div>
-      </div>
-
-      {/* Transcript Section */}
-      <div className="transcriptSection">
-        <div className="transcriptHeader">
-          <h3>Transcript</h3>
-          <div className="transcriptControls">
-            <button 
-              className="speakButton"
-              onClick={speakTranscript}
-              disabled={isSpeaking || !transcript}
-              title="Speak transcript"
-            >
-              <FaVolumeUp />
-            </button>
-            <button 
-              className="clearButton"
-              onClick={clearTranscript}
-              disabled={!transcript}
-              title="Clear transcript"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-        <div className="transcriptText">
-          {transcript || "No gestures detected yet..."}
-        </div>
-      </div>
+      )}
 
       {/* History and Custom Gestures */}
       <div className="additionalFeatures">
