@@ -789,6 +789,14 @@ const VideoCall = ({
       }
     });
 
+    // Listen for call-received event to update sender's status
+    socket.on("call-received", () => {
+      console.log("[Socket] Call received by receiver, updating status to ringing");
+      if (callStatus === "calling") {
+        setCallStatus("ringing");
+      }
+    });
+
     return () => {
       console.log("Cleaning up socket event listeners");
       socket.off("call-accepted");
@@ -796,6 +804,7 @@ const VideoCall = ({
       socket.off("ice-candidate");
       socket.off("call-update");
       socket.off("call-update-answer");
+      socket.off("call-received");
       endCall();
     };
   }, [contactId]);

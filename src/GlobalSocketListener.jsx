@@ -11,6 +11,9 @@ const GlobalSocketListener = () => {
     socket.on("incoming-call", ({ offer, from }) => {
       setIncomingCall({ offer, from });
       console.log("Global incoming call received");
+      
+      // Notify the sender that the receiver has received the call
+      socket.emit("call-received", { to: from._id });
     });
 
     // Clean up the event listener when the component unmounts
