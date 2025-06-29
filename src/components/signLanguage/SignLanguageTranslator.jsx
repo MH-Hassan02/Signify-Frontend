@@ -26,12 +26,13 @@ const SignLanguageTranslator = ({
   const [showHistory, setShowHistory] = useState(false);
   const [showCustomGestures, setShowCustomGestures] = useState(false);
   const [webglSupported, setWebglSupported] = useState(true);
-  const [previousGesture, setPreviousGesture] = useState("");
   const [isTranscriptCleared, setIsTranscriptCleared] = useState(false);
   
   const handposeModel = useRef(null);
   const detectionInterval = useRef(null);
   const speechSynthesis = window.speechSynthesis;
+  const currentTranscriptRef = useRef("");
+  const lastGestureRef = useRef("");
 
   // Check WebGL support
   useEffect(() => {
@@ -126,11 +127,12 @@ const SignLanguageTranslator = ({
               onGestureDetected?.(gesture);
               
               // Only add to transcript if it's a new gesture (not duplicate)
-              if (gesture !== previousGesture && !isTranscriptCleared) {
-                const newTranscript = transcript + (transcript ? " " : "") + gesture;
+              if (gesture !== lastGestureRef.current && !isTranscriptCleared) {
+                const newTranscript = currentTranscriptRef.current + (currentTranscriptRef.current ? " " : "") + gesture;
+                currentTranscriptRef.current = newTranscript;
                 setTranscript(newTranscript);
                 onTranscriptUpdate?.(newTranscript);
-                setPreviousGesture(gesture);
+                lastGestureRef.current = gesture;
               }
               
               // Add to history
@@ -142,11 +144,11 @@ const SignLanguageTranslator = ({
               setGestureHistory(prev => [historyItem, ...prev.slice(0, 9)]); // Keep last 10
             } else {
               setDetectedGesture("No Hand Detected");
-              setPreviousGesture(""); // Reset previous gesture when no hand detected
+              lastGestureRef.current = ""; // Reset last gesture when no hand detected
             }
           } else {
             setDetectedGesture("No Hand Detected");
-            setPreviousGesture(""); // Reset previous gesture when no hand detected
+            lastGestureRef.current = ""; // Reset last gesture when no hand detected
           }
         } catch (err) {
           console.error("Error detecting gesture:", err);
@@ -162,7 +164,7 @@ const SignLanguageTranslator = ({
         }
       };
     }
-  }, [isActive, isModelLoaded, videoRef, transcript, previousGesture, isTranscriptCleared, onGestureDetected, onTranscriptUpdate]);
+  }, [isActive, isModelLoaded, videoRef, isTranscriptCleared, onGestureDetected, onTranscriptUpdate]);
 
   // Handle peer transcript updates to prevent duplicates
   useEffect(() => {
@@ -176,7 +178,8 @@ const SignLanguageTranslator = ({
   useEffect(() => {
     if (!isActive) {
       setDetectedGesture("No Hand Detected");
-      setPreviousGesture("");
+      lastGestureRef.current = "";
+      currentTranscriptRef.current = "";
       setIsTranscriptCleared(false);
     }
   }, [isActive]);
@@ -237,7 +240,8 @@ const SignLanguageTranslator = ({
 
   const clearTranscript = () => {
     setTranscript("");
-    setPreviousGesture(""); // Reset previous gesture to allow new gestures
+    currentTranscriptRef.current = "";
+    lastGestureRef.current = ""; // Reset last gesture to allow new gestures
     setIsTranscriptCleared(true); // Mark as cleared
     onTranscriptUpdate?.("");
     
@@ -380,6 +384,33 @@ const SignLanguageTranslator = ({
           </div>
           <div className="transcriptText">
             {peerTranscript}
+          </div>
+        </div>
+      )}
+
+      {/* Combined Transcript Section - Show when both are active */}
+      {isLocalActive && isPeerActive && transcript && peerTranscript && (
+        <div className="transcriptSection combined">
+          <div className="transcriptHeader">
+            <h3>Combined Transcript</h3>
+            <div className="transcriptControls">
+              <button 
+                className="speakButton"
+                onClick={() => speakText(`${transcript} ${peerTranscript}`)}
+                disabled={isSpeaking || (!transcript && !peerTranscript)}
+                title="Speak combined transcript"
+              >
+                <FaVolumeUp />
+              </button>
+            </div>
+          </div>
+          <div className="transcriptText">
+            <div className="transcriptPart">
+              <strong>You:</strong> {transcript}
+            </div>
+            <div className="transcriptPart">
+              <strong>{contactUsername}:</strong> {peerTranscript}
+            </div>
           </div>
         </div>
       )}

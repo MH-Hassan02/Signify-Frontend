@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { FiSearch } from "react-icons/fi";
 import { FaHome, FaPlus } from "react-icons/fa";
@@ -8,12 +8,13 @@ import { toast } from "react-toastify";
 import socket from "../../socket"; // ✅ use the shared instance
 import { Link } from "react-router-dom";
 
-const Contacts = ({ onSelectContact }) => {
+const Contacts = ({ onSelectContact, videoCallActive = false }) => {
   const [contacts, setContacts] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const isMountedRef = useRef(true);
 
   const fetchContacts = async () => {
     try {
@@ -24,23 +25,34 @@ const Contacts = ({ onSelectContact }) => {
         }
       );
 
-      setContacts([
-        ...res.data.contactsWithMessages,
-        ...(res.data.contactsWithoutMessages || []),
-      ]);
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setContacts([
+          ...res.data.contactsWithMessages,
+          ...(res.data.contactsWithoutMessages || []),
+        ]);
+      }
     } catch (err) {
       console.error("Fetch contacts error:", err);
-      toast.error("Could not load contacts.");
+      if (isMountedRef.current) {
+        toast.error("Could not load contacts.");
+      }
     }
   };
 
   useEffect(() => {
-    fetchContacts();
+    // Only fetch contacts if not in a video call
+    if (!videoCallActive) {
+      fetchContacts();
+    }
 
     // console.log("📡 Setting up socket listener for 'message received'");
 
     const handleMessageReceived = (newMessage) => {
       // console.log("📥 Received message on socket:", newMessage);
+
+      // Skip message handling during video calls to reduce load
+      if (videoCallActive) return;
 
       setContacts((prevContacts) =>
         prevContacts.map((contact) => {
@@ -69,9 +81,10 @@ const Contacts = ({ onSelectContact }) => {
 
     return () => {
       // console.log("🧹 Cleaning up socket listener");
+      isMountedRef.current = false;
       socket.off("message received", handleMessageReceived);
     };
-  }, [contacts]);
+  }, [videoCallActive]);
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) return;

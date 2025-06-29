@@ -121,14 +121,41 @@
 }
 
 .transcriptText {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 6px;
+  background-color: #2a2a2a;
+  border-radius: 8px;
   padding: 12px;
   min-height: 60px;
-  font-size: 14px;
+  max-height: 120px;
+  overflow-y: auto;
+  color: #fff;
+  font-size: 0.9rem;
   line-height: 1.4;
-  color: #e0e0e0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Combined Transcript Styles */
+.transcriptSection.combined {
+  border: 2px solid #4caf50;
+  background-color: rgba(76, 175, 80, 0.05);
+}
+
+.transcriptSection.combined .transcriptHeader h3 {
+  color: #4caf50;
+}
+
+.transcriptPart {
+  margin-bottom: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.transcriptPart:last-child {
+  margin-bottom: 0;
+}
+
+.transcriptPart strong {
+  color: #4caf50;
+  margin-right: 8px;
 }
 
 .additionalFeatures {

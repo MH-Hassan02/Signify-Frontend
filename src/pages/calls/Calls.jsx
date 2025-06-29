@@ -69,7 +69,7 @@ const Calls = () => {
           mobileMode && selectedContact ? "mobileHidden" : ""
         } ${videoCallActive ? "callHide" : ""}`}
       >
-        <Contacts onSelectContact={setSelectedContact} />
+        <Contacts onSelectContact={setSelectedContact} videoCallActive={videoCallActive} />
       </div>
 
       <div
