@@ -5,6 +5,8 @@ import {
   FaVideo,
   FaVideoSlash,
   FaPhoneSlash,
+  FaPhone,
+  FaCheck,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import socket from "../../socket";
@@ -44,24 +46,27 @@ const VideoCall = ({
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isRemoteVideoEnabled, setIsRemoteVideoEnabled] = useState(true);
   const [isRemoteMicEnabled, setIsRemoteMicEnabled] = useState(true);
+  const [callStatus, setCallStatus] = useState(""); // calling, ringing, connected
 
   const { setIncomingCall, isCalling, setIsCalling } = useVideoCall();
 
+  // Optimized ICE servers for faster connection
   const servers = {
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
       {
         urls: [
-          "turn:a.relay.metered.ca:80",
-          "turn:a.relay.metered.ca:80?transport=tcp",
-          "turn:a.relay.metered.ca:443",
-          "turn:a.relay.metered.ca:443?transport=tcp",
+          "turn:openrelay.metered.ca:80",
+          "turn:openrelay.metered.ca:443",
+          "turn:openrelay.metered.ca:443?transport=tcp",
         ],
-        username: "e2c0e5ddc6c9ab8bc726db55",
-        credential: "2D+rvHqfUe+9Yf/N",
+        username: "openrelayproject",
+        credential: "openrelayproject",
       },
     ],
-    iceCandidatePoolSize: 10,
+    iceCandidatePoolSize: 5, // Reduced for faster gathering
     bundlePolicy: "max-bundle",
     rtcpMuxPolicy: "require",
   };
@@ -142,16 +147,7 @@ const VideoCall = ({
   // Enhanced peer connection setup
   const setupPeerConnection = async (stream) => {
     console.log("Setting up peer connection");
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        {
-          urls: "turn:openrelay.metered.ca:80",
-          username: "openrelayproject",
-          credential: "openrelayproject",
-        },
-      ],
-    });
+    const pc = new RTCPeerConnection(servers); // Use the optimized servers configuration
     peerConnectionRef.current = pc;
 
     // Add all tracks to the peer connection
@@ -247,9 +243,6 @@ const VideoCall = ({
 
     // Connection state monitoring
     pc.onconnectionstatechange = () => {
-      const remoteVideoTrack = remoteStream?.getVideoTracks?.()[0];
-      console.log("Remote video track after connected:", remoteVideoTrack);
-
       const state = pc.connectionState;
       console.log(
         "[PeerConnection] Connection state changed:",
@@ -260,6 +253,7 @@ const VideoCall = ({
 
       if (state === "connected") {
         setIsConnected(true);
+        setCallStatus("connected"); // Update status to connected
         // Ensure all tracks are enabled when connected
         pc.getSenders().forEach((sender) => {
           if (sender.track) {
@@ -330,12 +324,20 @@ const VideoCall = ({
   };
 
   const waitForIceGatheringComplete = (pc) =>
-    new Promise((resolve) => {
+    new Promise((resolve, reject) => {
+      // Add timeout to prevent indefinite waiting
+      const timeout = setTimeout(() => {
+        console.warn("ICE gathering timeout, proceeding anyway");
+        resolve();
+      }, 5000); // 5 second timeout instead of waiting indefinitely
+
       if (pc.iceGatheringState === "complete") {
+        clearTimeout(timeout);
         resolve();
       } else {
         const checkState = () => {
           if (pc.iceGatheringState === "complete") {
+            clearTimeout(timeout);
             pc.removeEventListener("icegatheringstatechange", checkState);
             resolve();
           }
@@ -344,45 +346,16 @@ const VideoCall = ({
       }
     });
 
-  // Enhanced local media setup
+  // Enhanced local media setup - optimized for speed
   const getLocalMedia = async () => {
     try {
-      // Step 1: Get video stream
-      const videoStream = await navigator.mediaDevices.getUserMedia({
+      // Get both video and audio simultaneously for faster setup
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
+        audio: true,
       });
 
-      console.log("Video stream tracks:", videoStream.getTracks());
-
-      // Step 2: Check if audioinput exists
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      console.log("Available media devices:");
-      devices.forEach((device) => console.log(device.kind, device.label));
-
-      const hasMic = devices.some((device) => device.kind === "audioinput");
-
-      // Step 3: Merge video + audio if mic exists
-      let stream;
-      if (hasMic) {
-        try {
-          const audioStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-          });
-          stream = new MediaStream([
-            ...videoStream.getTracks(),
-            ...audioStream.getTracks(),
-          ]);
-        } catch (err) {
-          console.warn(
-            "Mic access denied or unavailable. Using video only.",
-            err
-          );
-          stream = videoStream;
-        }
-      } else {
-        console.warn("No mic found. Using video only.");
-        stream = videoStream;
-      }
+      console.log("Media stream obtained:", stream.getTracks().map(t => t.kind));
 
       // Ensure all tracks are enabled
       stream.getTracks().forEach((track) => {
@@ -393,39 +366,49 @@ const VideoCall = ({
       localStreamRef.current = stream;
       setLocalStream(stream);
 
-      // Set up local video
+      // Set up local video immediately
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
         localVideoRef.current.muted = true;
         localVideoRef.current.playsInline = true;
         localVideoRef.current.autoplay = true;
 
-        localVideoRef.current.onloadedmetadata = () => {
-          console.log("Local video metadata loaded");
-          localVideoRef.current
-            ?.play()
-            .then(() => console.log("Local video playing successfully"))
-            .catch((err) => console.error("Error playing local video:", err));
-        };
-
-        if (localVideoRef.current.readyState >= 2) {
-          console.log("Local video ready state >= 2, forcing play");
-          localVideoRef.current
-            .play()
-            .then(() =>
-              console.log("Local video playing successfully after force")
-            )
-            .catch((err) =>
-              console.error("Error forcing local video play:", err)
-            );
+        // Try to play immediately
+        try {
+          await localVideoRef.current.play();
+          console.log("Local video playing successfully");
+        } catch (err) {
+          console.warn("Auto-play failed, will play on user interaction:", err);
         }
       }
 
       return stream;
     } catch (err) {
       console.error("Error accessing media devices:", err);
-      toast.error("Failed to access camera or microphone");
-      throw err;
+      
+      // Fallback: try video only if audio fails
+      try {
+        console.log("Trying video-only fallback");
+        const videoStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+        
+        localStreamRef.current = videoStream;
+        setLocalStream(videoStream);
+        
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = videoStream;
+          localVideoRef.current.muted = true;
+          localVideoRef.current.playsInline = true;
+          localVideoRef.current.autoplay = true;
+        }
+        
+        return videoStream;
+      } catch (fallbackErr) {
+        console.error("Fallback also failed:", fallbackErr);
+        toast.error("Failed to access camera or microphone");
+        throw fallbackErr;
+      }
     }
   };
 
@@ -553,6 +536,8 @@ const VideoCall = ({
   // Modified handleIncomingCall
   const handleIncomingCall = async (stream) => {
     try {
+      setCallStatus("ringing"); // Set status to ringing for incoming calls
+      
       // ✅ Setup peer connection and add local tracks inside setupPeerConnection
       const pc = await setupPeerConnection(stream);
 
@@ -602,26 +587,20 @@ const VideoCall = ({
     } catch (err) {
       console.error("❌ Error in incoming call flow:", err);
       toast.error("Failed to set up incoming call");
+      setCallStatus(""); // Reset status on error
       endCall();
     }
   };
 
   // Modified startCall
   const startCall = async (stream) => {
-    console.log("Starting outgoing call with contactId:", contactId);
-
     try {
+      console.log("[StartCall] Starting call setup");
       setIsCalling(true);
+      setCallStatus("calling"); // Set status to calling
 
       const pc = await setupPeerConnection(stream);
-
-      // Ensure all tracks are enabled
-      stream.getTracks().forEach((track) => {
-        track.enabled = true;
-      });
-
-      // Wait for ICE gathering to begin
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      peerConnectionRef.current = pc;
 
       const offer = await pc.createOffer();
       console.log("[StartCall] Created offer:", offer);
@@ -631,7 +610,7 @@ const VideoCall = ({
         pc.localDescription
       );
 
-      await waitForIceGatheringComplete(pc); // ✅ ensure ICE complete
+      await waitForIceGatheringComplete(pc);
       console.log(
         "[StartCall] Emitting call-user with offer:",
         pc.localDescription
@@ -646,6 +625,7 @@ const VideoCall = ({
       console.error("Error starting call:", err);
       toast.error("Failed to start call");
       setIsCalling(false);
+      setCallStatus(""); // Reset status on error
       endCall();
     }
   };
@@ -700,6 +680,7 @@ const VideoCall = ({
     setIncomingCall(null);
     setIsConnected(false);
     setIsVideoReady(false);
+    setCallStatus(""); // Reset call status
 
     onClose?.();
     navigate("/calls", { replace: true });
@@ -848,6 +829,30 @@ const VideoCall = ({
 
   return (
     <div className="videoCallWrapper">
+      {/* WhatsApp-style status indicator */}
+      {callStatus && (
+        <div className={`callStatus ${callStatus}`}>
+          {callStatus === "calling" && (
+            <>
+              <FaPhone className="statusIcon" />
+              Calling...
+            </>
+          )}
+          {callStatus === "ringing" && (
+            <>
+              <FaPhone className="statusIcon ringing" />
+              Ringing...
+            </>
+          )}
+          {callStatus === "connected" && (
+            <>
+              <FaCheck className="statusIcon" />
+              Connected
+            </>
+          )}
+        </div>
+      )}
+
       <div className="videoContainer">
         <div className="videoSlot">
           {!isVideoOn ? (
