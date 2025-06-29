@@ -690,6 +690,18 @@ const VideoCall = ({
   useEffect(() => {
     console.log("Setting up socket event listeners for video call");
 
+    // Listen for call-received event to update sender's status - set up immediately
+    socket.on("call-received", () => {
+      console.log("[Socket] Call received by receiver, updating status to ringing");
+      console.log("[Socket] Current call status:", callStatus);
+      if (callStatus === "calling") {
+        console.log("[Socket] Changing status from calling to ringing");
+        setCallStatus("ringing");
+      } else {
+        console.log("[Socket] Not changing status, current status is:", callStatus);
+      }
+    });
+
     socket.on("call-accepted", async ({ answer }) => {
       console.log("[Socket] Received call-accepted with answer:", answer);
 
@@ -789,14 +801,6 @@ const VideoCall = ({
       }
     });
 
-    // Listen for call-received event to update sender's status
-    socket.on("call-received", () => {
-      console.log("[Socket] Call received by receiver, updating status to ringing");
-      if (callStatus === "calling") {
-        setCallStatus("ringing");
-      }
-    });
-
     return () => {
       console.log("Cleaning up socket event listeners");
       socket.off("call-accepted");
@@ -840,6 +844,13 @@ const VideoCall = ({
         handleConnectionStateChange
       );
   }, [isVideoOn]);
+
+  // Debug call status changes
+  useEffect(() => {
+    console.log("🔄 Call status changed to:", callStatus);
+  }, [callStatus]);
+
+  // Initialize handpose model
 
   return (
     <div className="videoCallWrapper">

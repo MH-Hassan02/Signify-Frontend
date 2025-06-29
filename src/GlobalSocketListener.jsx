@@ -11,8 +11,10 @@ const GlobalSocketListener = () => {
     socket.on("incoming-call", ({ offer, from }) => {
       setIncomingCall({ offer, from });
       console.log("Global incoming call received");
+      console.log("From user:", from);
       
       // Notify the sender that the receiver has received the call
+      console.log("Emitting call-received to:", from._id);
       socket.emit("call-received", { to: from._id });
     });
 
