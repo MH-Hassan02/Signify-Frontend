@@ -290,7 +290,7 @@ const Chat = ({ selectedContact, onVideoCall, onBack, mobileMode }) => {
                 className="videoCallIcon"
                 onClick={() => onVideoCall(selectedContact)}
               />
-              <FaSearch className="searchIcon" />
+              {/* <FaSearch className="searchIcon" /> */}
             </div>
           </div>
 

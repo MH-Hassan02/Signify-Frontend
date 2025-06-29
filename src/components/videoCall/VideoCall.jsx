@@ -759,7 +759,7 @@ const VideoCall = ({
     socket.on("call-received", () => {
       console.log("[Socket] Call received by receiver, updating status to ringing");
       console.log("[Socket] Current call status:", callStatus);
-      if (callStatus === "calling") {
+      if (callStatus === "ringing") {
         console.log("[Socket] Changing status from calling to ringing");
         setCallStatus("ringing");
       } else {

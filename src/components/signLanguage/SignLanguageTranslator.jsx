@@ -395,7 +395,7 @@ const SignLanguageTranslator = ({
       )}
 
       {/* History and Custom Gestures */}
-      <div className="additionalFeatures">
+      {/* <div className="additionalFeatures">
         <button 
           className="historyButton"
           onClick={() => setShowHistory(!showHistory)}
@@ -409,10 +409,10 @@ const SignLanguageTranslator = ({
         >
           <FaPlus /> Custom Gestures
         </button>
-      </div>
+      </div> */}
 
       {/* Gesture History Modal */}
-      {showHistory && (
+      {/* {showHistory && (
         <div className="historyModal">
           <div className="modalContent">
             <h3>Gesture History</h3>
@@ -444,10 +444,10 @@ const SignLanguageTranslator = ({
             )}
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Custom Gestures Modal */}
-      {showCustomGestures && (
+      {/* {showCustomGestures && (
         <div className="customGesturesModal">
           <div className="modalContent">
             <h3>Custom Gestures</h3>
@@ -471,7 +471,7 @@ const SignLanguageTranslator = ({
             </div>
           </div>
         </div>
-      )}
+      )} */}
     </div>
   );
 };
