@@ -15,7 +15,6 @@ export async function classifyGestureAPI(landmarks) {
     });
 
     const text = await response.text(); // Read response body as text for debugging
-    console.log("Raw API response:", text);
 
     if (!response.ok) {
       // Try to parse error message from server response

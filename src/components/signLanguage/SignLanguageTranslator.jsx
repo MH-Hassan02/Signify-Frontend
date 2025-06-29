@@ -122,8 +122,6 @@ const SignLanguageTranslator = ({
               
               // Only add to transcript if it's a new gesture (not duplicate)
               if (gesture !== lastLocalGesture && !isTranscriptCleared) {
-                console.log(lastLocalGesture, "lastLocalGesture")
-                console.log("gesture", gesture)
                 const newTranscript = transcript + (transcript ? " " : "") + gesture;
                 setTranscript(newTranscript);
                 onTranscriptUpdate?.(newTranscript);
@@ -139,11 +137,9 @@ const SignLanguageTranslator = ({
               setGestureHistory(prev => [historyItem, ...prev.slice(0, 9)]); // Keep last 10
             } else {
               setDetectedGesture("No Hand Detected");
-              setLastLocalGesture(""); // Reset last gesture when no hand detected
             }
           } else {
             setDetectedGesture("No Hand Detected");
-            setLastLocalGesture(""); // Reset last gesture when no hand detected
           }
         } catch (err) {
           console.error("Error detecting gesture:", err);

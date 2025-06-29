@@ -800,14 +800,12 @@ const VideoCall = ({
     });
 
     socket.on("gesture-detected", ({ gesture, from }) => {
-      console.log("[Socket] Received gesture from peer:", gesture, "from:", from);
       if (from === contactId) {
         setPeerGesture(gesture);
       }
     });
 
     socket.on("transcript-update", ({ transcript, from }) => {
-      console.log("[Socket] Received transcript update from peer:", transcript, "from:", from);
       if (from === contactId) {
         setPeerTranscript(transcript);
       }
