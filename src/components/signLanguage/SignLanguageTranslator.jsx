@@ -13,7 +13,7 @@ const SignLanguageTranslator = ({
   onTranscriptUpdate,
   peerGesture = "No Hand Detected" 
 }) => {
-  const [modelLoaded, setModelLoaded] = useState(false);
+  const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [detectedGesture, setDetectedGesture] = useState("No Hand Detected");
   const [transcript, setTranscript] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -21,10 +21,61 @@ const SignLanguageTranslator = ({
   const [customGestures, setCustomGestures] = useState({});
   const [showHistory, setShowHistory] = useState(false);
   const [showCustomGestures, setShowCustomGestures] = useState(false);
+  const [webglSupported, setWebglSupported] = useState(true);
   
   const handposeModel = useRef(null);
   const detectionInterval = useRef(null);
   const speechSynthesis = window.speechSynthesis;
+
+  // Check WebGL support
+  useEffect(() => {
+    const checkWebGL = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (!gl) {
+          console.warn('WebGL not supported, falling back to CPU');
+          setWebglSupported(false);
+          return false;
+        }
+        
+        // Check if WebGL is actually working
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+        if (debugInfo) {
+          const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+          console.log('WebGL Renderer:', renderer);
+        }
+        
+        return true;
+      } catch (e) {
+        console.warn('WebGL check failed:', e);
+        setWebglSupported(false);
+        return false;
+      }
+    };
+    
+    checkWebGL();
+  }, []);
+
+  // Initialize TensorFlow.js backend
+  useEffect(() => {
+    const initializeBackend = async () => {
+      try {
+        if (webglSupported) {
+          await tf.setBackend('webgl');
+          console.log('Using WebGL backend');
+        } else {
+          await tf.setBackend('cpu');
+          console.log('Using CPU backend (WebGL not available)');
+        }
+      } catch (error) {
+        console.warn('Failed to set backend, using default:', error);
+        await tf.setBackend('cpu');
+      }
+    };
+
+    initializeBackend();
+  }, [webglSupported]);
 
   // Initialize handpose model
   useEffect(() => {
@@ -33,7 +84,7 @@ const SignLanguageTranslator = ({
         await tf.setBackend("webgl");
         handposeModel.current = await handpose.load();
         console.log("Handpose model loaded successfully");
-        setModelLoaded(true);
+        setIsModelLoaded(true);
         toast.success("Sign language detection ready!");
       } catch (err) {
         console.error("Failed to load handpose model:", err);
@@ -51,7 +102,7 @@ const SignLanguageTranslator = ({
 
   // Gesture detection logic
   useEffect(() => {
-    if (isActive && modelLoaded && handposeModel.current && videoRef?.current) {
+    if (isActive && isModelLoaded && handposeModel.current && videoRef?.current) {
       const detect = async () => {
         try {
           const hands = await handposeModel.current.estimateHands(
@@ -100,7 +151,7 @@ const SignLanguageTranslator = ({
         }
       };
     }
-  }, [isActive, modelLoaded, videoRef, transcript, onGestureDetected, onTranscriptUpdate]);
+  }, [isActive, isModelLoaded, videoRef, transcript, onGestureDetected, onTranscriptUpdate]);
 
   // Text-to-Speech functionality
   const speakText = (text) => {
@@ -167,6 +218,30 @@ const SignLanguageTranslator = ({
 
   return (
     <div className="signLanguageTranslator">
+      <div className="translatorHeader">
+        <h3>Sign Language Translator</h3>
+        <div className="statusIndicators">
+          <span className={`status ${isModelLoaded ? 'loaded' : 'loading'}`}>
+            {isModelLoaded ? 'Model Ready' : 'Loading Model...'}
+          </span>
+          <span className={`status ${webglSupported ? 'webgl' : 'cpu'}`}>
+            {webglSupported ? 'WebGL' : 'CPU Mode'}
+          </span>
+        </div>
+      </div>
+      
+      {!webglSupported && (
+        <div className="webglWarning">
+          <p>⚠️ WebGL not supported. Using CPU mode (slower performance).</p>
+          <p>For better performance, try:</p>
+          <ul>
+            <li>Updating your browser</li>
+            <li>Enabling hardware acceleration</li>
+            <li>Using Chrome or Firefox</li>
+          </ul>
+        </div>
+      )}
+
       {/* Main Controls */}
       <div className="translatorControls">
         <div className="gestureDisplay">
@@ -308,12 +383,6 @@ const SignLanguageTranslator = ({
           </div>
         </div>
       )}
-
-      {/* Status Indicator */}
-      <div className="statusIndicator">
-        <div className={`statusDot ${modelLoaded ? 'loaded' : 'loading'}`} />
-        <span>{modelLoaded ? 'Detection Active' : 'Loading Model...'}</span>
-      </div>
     </div>
   );
 };
