@@ -147,7 +147,7 @@ const SignLanguageTranslator = ({
         }
       };
 
-      detectionInterval.current = setInterval(detect, 200); // Detect every 200ms
+      detectionInterval.current = setInterval(detect, 500);
       
       return () => {
         if (detectionInterval.current) {
