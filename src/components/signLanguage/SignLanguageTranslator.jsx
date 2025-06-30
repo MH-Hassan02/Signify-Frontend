@@ -176,8 +176,8 @@ const SignLanguageTranslator = ({
   useEffect(() => {
     if (!isActive) {
       setDetectedGesture("No Hand Detected");
-      setLastLocalGesture("");
-      setLastPeerGesture("");
+      // setLastLocalGesture("");
+      // setLastPeerGesture("");
       setIsTranscriptCleared(false);
     }
   }, [isActive]);
