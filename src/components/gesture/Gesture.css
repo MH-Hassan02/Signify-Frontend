@@ -4,7 +4,6 @@
     padding: 8% 0;
     background-color: var(--secondary-color);
     display: flex;
-    flex-direction: column;
     justify-content: center;
     align-items: center;
 }
@@ -30,6 +29,8 @@
 
 .gestureText{
     margin-bottom: 50px;
+    display: flex;
+    flex-direction: column;
 }
 
 .gestureText h1{
